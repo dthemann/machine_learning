@@ -37,7 +37,7 @@ Linux, macOS and Windows.
 
 | | |
 |---|---|
-| **21 notebooks** | ~190 000 words of explanation, 760 code cells, 470+ figures |
+| **21 notebooks** | ~200 000 words of explanation, 820+ code cells, 480 figures |
 | **120+ exercises** | four to six per notebook, graded easy → hard, each with a solution sketch |
 | **9 datasets** | five real, four simulated with a known ground truth |
 | **~400 references** | textbooks, papers and documentation, with the free ones marked |
