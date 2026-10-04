@@ -89,6 +89,12 @@ chosen features, (ii) errors are independent, (iii) errors have constant varianc
 (*homoscedasticity*), (iv) errors are Gaussian, and (v) no feature is an exact linear
 combination of the others. Section 4 shows how to check them.
 
+> **Real-life example.** A city's water utility regresses daily water consumption on the day's
+> temperature, using three years of data. Consecutive days share things the model does not
+> see — school holidays, a heat wave building up — so one day's error predicts the next day's:
+> assumption (ii) fails. The coefficients stay unbiased, but the standard errors of section 3
+> come out too small, and the model looks more certain than it is.
+
 **Squared loss and maximum likelihood.** We fit by minimising the mean squared error
 
 ```math
@@ -167,6 +173,12 @@ $\hat{\mathbf{y}} = \mathbf{H}\mathbf{y}$ with the **hat matrix**
 $\mathbf{H} = \mathbf{X}(\mathbf{X}^\top\mathbf{X})^{-1}\mathbf{X}^\top$ will return in the
 leverage diagnostics of section 4.
 
+> **Real-life example.** A used-car dealer regresses the asking price of each car on its age and
+> mileage. A car's residual — how much dearer it is than a car of that age and mileage "should"
+> be — is by construction uncorrelated with age and with mileage. Whatever the residuals still
+> correlate with (a full service history, a popular colour) is information the two features do
+> not contain, and a candidate for the next feature.
+
 ```python
 def add_intercept(X):
     """Prepend a column of ones: theta = (b, w_1, ..., w_d).
@@ -219,6 +231,13 @@ The normal equations are a $(d+1) \times (d+1)$ linear system. Three ways to sol
    number, see 2.3) and returns the minimum-norm solution when the system is singular.
    scikit-learn's `LinearRegression` uses this.
 
+> **Real-life example.** A bike-rental scheme predicts daily rentals from the weather plus one
+> 0/1 column for each of the seven weekdays, and the model has an intercept. The seven columns
+> always add up to the column of ones, so the normal equations have no unique solution:
+> `np.linalg.solve` either fails or returns huge, meaningless coefficients, while `lstsq` still
+> returns the minimum-norm solution. Dropping one weekday (`OneHotEncoder(drop="first")`)
+> removes the redundancy.
+
 ```python
 from sklearn.linear_model import LinearRegression     # ordinary least squares
 
@@ -258,6 +277,11 @@ with learning rate $\eta$. Three variants differ in how much data each step uses
   cheaper; the noise never settles unless $\eta$ is decreased (Robbins & Monro, 1951).
 - **Mini-batch GD** uses a random batch of $m$ rows (32–512): the practical compromise and
   the workhorse of deep learning.
+
+> **Real-life example.** A video-streaming service predicts how many minutes a user will watch
+> tonight from a few hundred features, and logs tens of millions of viewing sessions a day. The
+> table never fits in memory and keeps growing, so rather than solving the normal equations the
+> model is updated with mini-batches of a few hundred fresh sessions at a time.
 
 We standardise the features first — section 2.3 shows why this is not optional — and write
 a small class in the scikit-learn style. One *epoch* is one pass over the data.
@@ -530,6 +554,12 @@ overlapping intervals — a symptom of multicollinearity that section 4.2 explai
 > may be the real cause), or useful for prediction. With hundreds of features and no
 > correction, some "significant" coefficients are expected by chance alone.
 
+> **Real-life example.** A national exam board regresses the maths marks of 2 million pupils on
+> 30 pupil and school features and might find that sitting the exam on a Monday costs 0.3 points
+> on a 100-point scale, with p < 0.001. With that many rows even a negligible difference is
+> estimated precisely: "significant" means "very probably not exactly zero", not "worth moving
+> the exam to a Tuesday".
+
 ## 4. Diagnostics: is the linear model appropriate?
 
 ### 4.1 Residual plots and the Q–Q plot
@@ -550,6 +580,15 @@ left, constant spread, roughly Gaussian. Three plots check this:
   unusual input with a large residual to measure how much the whole fit would change if the
   row were deleted. Points with $`D_i`$ above about $4/n$ deserve a look — they may be errors,
   or the most interesting cases in the data.
+
+> **Real-life examples.**
+> - *Q–Q plot.* A taxi company's model of trip durations is within a few minutes for most trips,
+>   but road closures make a few trips 30–40 minutes longer than predicted. The residuals have a
+>   long right tail, and the Q–Q plot bends upwards at its right end.
+> - *Influence.* An estate agent's data set of 300 city flats of 30–150 m² also holds one 600 m²
+>   penthouse: its floor area alone gives it high leverage. If its price was typed as €450 000
+>   instead of €4.5 million, it also lies far off the trend, its Cook's distance is large, and on
+>   its own it flattens the price-per-m² slope for every other flat.
 
 ```python
 fitted = Xd @ theta                     # fitted values y_hat
@@ -597,8 +636,10 @@ term and a variance that grows with the prediction — fitted with a straight li
 ```python
 x_syn = rng.uniform(0, 10, 200)           # 200 x-values drawn uniformly from [0, 10)
 problems = {
+    # e.g. x = a car's speed, y = its braking distance (which grows with the square of the speed)
     "non-linearity: y = 0.3 x² + noise": 0.3 * x_syn ** 2 + rng.normal(0, 2, 200),
     # rng.normal accepts one standard deviation per point: here it grows with x (0.6 x)
+    # e.g. x = household income, y = yearly holiday spending (richer households differ more)
     "heteroscedasticity: noise sd grows with x": 3 * x_syn + rng.normal(0, 0.6 * x_syn, 200),
 }
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -697,6 +738,17 @@ collect more data — or to regularise, which is where section 7 begins.
 | $R^2$ | $`1 - \frac{\sum (y_i - \hat y_i)^2}{\sum (y_i - \bar y)^2}`$ | fraction of variance explained *relative to predicting the mean*; can be negative on test data; the `score` of every regressor | comparing across targets of different scale |
 | adjusted $R^2$ | $1 - (1 - R^2)\frac{n - 1}{n - d - 1}$ | penalises the number of features; only meaningful on training data | classical model comparison on training data |
 
+> **Real-life examples.**
+> - *RMSE vs. MAE.* Two forecasters predict the night's minimum temperature for 25 nights. One is
+>   2 °C off every night; the other is exact on 24 nights and 10 °C off once. Both have an RMSE of
+>   2 °C, but their MAEs are 2 °C and 0.4 °C. A fruit grower who switches on frost protection by
+>   the forecast fears the one big miss more than many small ones, so for them RMSE, which
+>   punishes it heavily, is the better guide.
+> - *MAPE.* A supermarket forecasts the daily sales of every product. Missing the bread forecast
+>   (400 loaves a day) by 20 loaves is a 5 % error; forecasting 4 jars of a speciality mustard
+>   that sells 2 is a 100 % error. A MAPE averaged over all products is dominated by the slow
+>   sellers, which matter least to the business.
+
 $R^2$ deserves a comment. On the training data it can only increase when a feature is added
 (hence the adjusted version), and it is bounded by 1. On *test* data it is simply
 $`1 - \text{MSE}_\text{model} / \text{MSE}_\text{mean baseline}`$: negative values mean the
@@ -762,11 +814,18 @@ line far from where the bulk of the data lies. Two remedies:
   many points are *inliers* (residual below a threshold), and keeps the consensus set with
   the most inliers. Robust to a large fraction of gross outliers; used in computer vision.
 
+> **Real-life example.** A panorama app that stitches two holiday photos matches a few hundred
+> corner points between them, and often a sizeable share of the matches are wrong (one window
+> paired with a similar window next to it). A least-squares alignment would be dragged towards
+> the false pairs; RANSAC fits the alignment on small random sets of matches and keeps the one
+> that most matches agree with — the standard approach in image stitching.
+
 ```python
 # HuberRegressor: squared loss for small residuals, absolute (linear) loss for large ones;
 # RANSACRegressor: fits on random small subsets and keeps the model that has the most inliers
 from sklearn.linear_model import HuberRegressor, RANSACRegressor
 
+# e.g. x = a conveyor's load (t/h), y = its motor power (kW); the outliers are glitches of the power sensor
 x_out = rng.uniform(0, 10, 80)
 y_out = 2 + 1.5 * x_out + rng.normal(0, 1, 80)                  # true line 2 + 1.5 x plus Gaussian noise
 outliers = rng.choice(80, 8, replace=False)                     # 8 distinct row positions
@@ -808,6 +867,12 @@ local bumps, piecewise polynomials of degree 3 that join smoothly at *knots*; ea
 coefficient only affects the curve near its knot, so the fit is stable, and outside the data
 range it continues as a constant (`extrapolation="constant"`) or a straight line.
 
+> **Real-life example.** A grid operator models hourly electricity demand against the outdoor
+> temperature. Demand rises on cold days (heating) and again in heat waves (air conditioning),
+> with a flat stretch in between — a U-shape no straight line can follow. A spline basis on
+> temperature traces it with local bumps; a high-degree polynomial can fit it too, but may swing
+> wildly on the first day that is colder than any in the training data.
+
 ```python
 # SplineTransformer: a B-spline basis (local cubic bumps between knots), one output column per basis function
 from sklearn.preprocessing import PolynomialFeatures, SplineTransformer
@@ -818,8 +883,8 @@ def truth(x):
     """The true curve of this toy problem: sin(1.5 x) + 0.3 x."""
     return np.sin(1.5 * x) + 0.3 * x
 
-x_curve = rng.uniform(0, 6, 60)
-y_curve = truth(x_curve) + rng.normal(0, 0.3, 60)
+x_curve = rng.uniform(0, 6, 60)                      # e.g. time in years
+y_curve = truth(x_curve) + rng.normal(0, 0.3, 60)    # e.g. a firm's sales: growth plus a business cycle
 grid = np.linspace(-1, 7.5, 300)        # reaches beyond the data range [0, 6] on both sides
 curve_models = {
     # PolynomialFeatures(10): all powers x^0 ... x^10 (scaling first keeps the high powers numerically manageable)
@@ -899,6 +964,13 @@ in which least squares is unstable. Ridge trades a little bias for a large reduc
 variance. Because the penalty is on the coefficients' *size*, the features must be on a
 common scale: **standardise before regularising**, always.
 
+> **Real-life example.** Basketball analysts rate players by regressing the points margin of each
+> stretch of play on one column per player, marking who is on the court for which team — several
+> hundred columns. Players who mostly share the court (a team's starting five) give nearly
+> collinear columns, and least squares hands out wildly unstable ratings; a ridge penalty shrinks
+> them to sensible values. The resulting statistic is known as regularised adjusted plus-minus
+> (RAPM).
+
 ```python
 yc = yd - yd.mean()                                   # centred target; Xs is already standardised
 lam = 10.0                                            # the penalty strength lambda (called alpha in scikit-learn)
@@ -951,6 +1023,11 @@ without feature $j$<span></span>'s contribution. Whenever the correlation $`\fra
 of a feature with the current residual is below $\alpha$ in absolute value, its coefficient
 is set to zero. Cycling through the coordinates until nothing changes converges to the
 global minimum, because the objective is convex.
+
+> **Real-life example.** An airline predicts how many booked passengers will not show up for a
+> flight, to decide how far to overbook, from 120 candidate features (route, weekday, fare mix,
+> connecting passengers, …). A lasso fit might keep a dozen of them: a model the revenue team can
+> read and audit, with only a dozen data feeds to maintain in production.
 
 ```python
 from sklearn.linear_model import Lasso, lasso_path     # lasso_path fits the lasso for a whole sequence of alphas
@@ -1036,6 +1113,7 @@ one coefficient is exactly zero.
 
 ```python
 # multiplying independent normal columns by a 2 x 2 matrix mixes them, which makes the two columns correlated
+# e.g. trunk diameter and height of 60 trees (standardised); y2 = their timber volume
 X2 = rng.normal(size=(60, 2)) @ np.array([[1.0, 0.6], [0.0, 0.8]])     # two correlated features
 y2 = X2 @ np.array([1.6, 0.9]) + rng.normal(0, 0.6, 60)       # true coefficients (1.6, 0.9)
 X2, y2 = X2 - X2.mean(0), y2 - y2.mean()                       # centre both, so no intercept is needed
@@ -1098,6 +1176,12 @@ with mixing parameter $\rho$ = `l1_ratio`: it keeps the sparsity of the lasso bu
 better with groups of correlated features, which the lasso tends to pick from arbitrarily
 and which the $`\ell_2`$ term encourages to enter together.
 
+> **Real-life example.** A food lab predicts the fat content of minced-meat samples from their
+> near-infrared spectrum: the absorbance at 100 neighbouring wavelengths, measured on fewer than
+> 200 samples. Wavelengths inside one absorption band carry nearly the same information, so the
+> lasso keeps one of them more or less at random — and a different one after the next
+> recalibration — while the elastic net keeps the whole band, which a chemist can interpret.
+
 > **Going deeper — the Bayesian view.** Notebook 2 showed that maximum a posteriori (MAP)
 > estimation adds $-\log p(\mathbf{w})$ to the negative log-likelihood. A Gaussian prior
 > $\mathbf{w} \sim \mathcal{N}(\mathbf{0}, \tau^2\mathbf{I})$ gives $`-\log p(\mathbf{w}) \propto \|\mathbf{w}\|_2^2`$
@@ -1150,6 +1234,12 @@ When *does* regularisation matter, and which penalty? A controlled experiment an
 non-zero coefficients) and a **dense** one (all 40 small and non-zero). We also trace the
 ridge test error as a function of $\lambda$ to see the bias–variance trade-off directly.
 
+> **Real-life examples.**
+> - *Sparse truth.* A chemical plant records 40 temperature readings along a reactor, but the
+>   purity of its product may hinge on a handful of them; the lasso can find that handful.
+> - *Dense truth.* Adult height depends on thousands of genetic variants, each with a tiny
+>   effect; no small subset explains it, and ridge, which keeps every feature, is the better bet.
+
 ```python
 def make_correlated_regression(n, w_true, rho=0.7, noise=2.0, rng=rng):
     """Simulate a linear regression problem with correlated Gaussian features.
@@ -1168,8 +1258,9 @@ def make_correlated_regression(n, w_true, rho=0.7, noise=2.0, rng=rng):
     X = rng.normal(size=(n, d)) @ np.linalg.cholesky(cov).T
     return X, X @ w_true + rng.normal(0, noise, n)
 
-d_syn = 40
+d_syn = 40                     # e.g. 40 temperature readings along a reactor; neighbours are the most alike
 # sparse truth: np.r_[...] joins five non-zero coefficients and 35 zeros; dense truth: 40 small random coefficients
+# e.g. sparse: the product's purity hinges on 5 readings; dense: every reading matters a little
 truths = {"sparse truth (5 of 40 non-zero)": np.r_[[3, -2, 1.5, 1, -1], np.zeros(d_syn - 5)],
           "dense truth (40 small effects)": rng.normal(0, 0.5, d_syn)}
 rows = []
@@ -1244,14 +1335,23 @@ predictions are always positive, and each coefficient acts *multiplicatively* �
 the factor by which the expected count changes per unit of $`x_j`$. Fitting maximises the
 Poisson log-likelihood, equivalently minimises the **Poisson deviance**
 $`2\sum_i \big[y_i \log\frac{y_i}{\hat\mu_i} - (y_i - \hat\mu_i)\big]`$, which plays the role
-of the squared error. Let us compare a linear and a Poisson fit on simulated counts.
+of the squared error.
+
+> **Real-life example.** Motor insurers model the number of claims a policy makes in a year —
+> mostly 0, sometimes 1 or 2 — with exactly this model, using driver age, car power, region and
+> so on as features. Each coefficient turns into a multiplication factor, such as "drivers under
+> 25: 1.8 times the expected number of claims", and such factors are the backbone of the premium
+> tables.
+
+Let us compare a linear and a Poisson fit on simulated counts.
 
 ```python
 from sklearn.linear_model import PoissonRegressor      # a GLM with a Poisson likelihood and a log link
 from sklearn.metrics import mean_poisson_deviance       # the Poisson counterpart of the MSE (needs predictions > 0)
 
-x_cnt = rng.uniform(-2, 2, 300)
+x_cnt = rng.uniform(-2, 2, 300)          # e.g. the hourly temperature at a beach kiosk (standardised)
 # rng.poisson(lam) draws one Poisson count for each rate in lam
+# e.g. the number of ice creams the kiosk sells in that hour
 y_cnt = rng.poisson(np.exp(0.4 + 1.1 * x_cnt))                     # true rate: exp(0.4 + 1.1 x)
 x_cnt_test = rng.uniform(-2, 2, 2000)
 y_cnt_test = rng.poisson(np.exp(0.4 + 1.1 * x_cnt_test))
@@ -1361,9 +1461,14 @@ curved, the residuals keep the curvature, and every prediction at the ends of th
 biased in the same direction. We generate a saturating dose–response curve — the kind of
 relationship that is everywhere in biology and economics — and fit a straight line to it.
 
+> **Real-life example.** A farm co-operative relates wheat yield to the nitrogen fertiliser spread
+> per hectare. Each extra kilogram adds less yield than the one before, until the crop cannot use
+> any more. A straight line through such data over-promises at high doses, so a farmer who
+> trusts it buys fertiliser that no longer pays for itself.
+
 ```python
-x_dose = rng.uniform(0, 10, 120)
-y_dose = 14 * x_dose / (2 + x_dose) + rng.normal(0, 0.8, 120)        # saturating truth
+x_dose = rng.uniform(0, 10, 120)                                     # e.g. nitrogen fertiliser per hectare
+y_dose = 14 * x_dose / (2 + x_dose) + rng.normal(0, 0.8, 120)        # saturating truth; e.g. wheat yield
 dose_grid = np.linspace(0, 10, 300)[:, None]
 
 ols_dose = LinearRegression().fit(x_dose[:, None], y_dose)
@@ -1419,6 +1524,11 @@ The instructive part is that the *predictions* barely suffer while the *coeffici
 apart — which is exactly why a model can be useless for explanation and fine for
 prediction at the same time.
 
+> **Real-life example.** A retailer always sets its radio and TV advertising budgets together, so
+> the two weekly spends rise and fall in step. A regression of weekly sales on both predicts sales
+> well, yet cannot tell which channel works: one sample credits most of the effect to radio, the
+> next to TV — useless for deciding which budget to cut.
+
 ```python
 from sklearn.linear_model import ElasticNet
 
@@ -1427,10 +1537,11 @@ def collinear_sample(n, rho, gen):
 
     Draws from the random generator `gen`; returns X of shape (n, 2) and y of shape (n,).
     """
-    x1 = gen.normal(size=n)
+    x1 = gen.normal(size=n)                                         # e.g. weekly radio advertising spend
+    # e.g. weekly TV spend, budgeted together with the radio spend
     x2 = rho * x1 + np.sqrt(1 - rho ** 2) * gen.normal(size=n)     # unit variance and correlation rho with x1
     X = np.c_[x1, x2]                                               # the two columns side by side, (n, 2)
-    return X, X @ np.array([1.0, 1.0]) + gen.normal(0, 1.0, n)
+    return X, X @ np.array([1.0, 1.0]) + gen.normal(0, 1.0, n)      # e.g. weekly sales
 
 rho_demo, n_demo, n_boot_demo = 0.995, 60, 200
 X_col, y_col = collinear_sample(n_demo, rho_demo, rng)
@@ -1526,13 +1637,15 @@ applies exactly the same $`\ell_1`$ pressure as `Lasso(alpha=1)`, plus a ridge t
 ```python
 d_grp, corr_grp = 12, 0.995
 n_grp, n_rep = 80, 150
+# e.g. a patient's level of inflammation, which three blood markers (x1-x3) all track
 z_shared = rng.normal(size=n_grp)          # a common signal shared by the three group features
 # three columns, each 0.995 * z_shared plus a little independent noise (so each pair correlates at about 0.99);
 # the generator yields three arrays, tuple(...) collects them and np.c_ stacks them as columns -> shape (80, 3)
 X_grp = np.c_[tuple(corr_grp * z_shared + np.sqrt(1 - corr_grp ** 2) * rng.normal(size=n_grp) for _ in range(3))]
+# e.g. one strong independent risk factor (x4) and eight irrelevant lab values
 X_grp = np.c_[X_grp, rng.normal(size=(n_grp, d_grp - 3))]          # 3 correlated + 1 strong + 8 noise
 w_grp = np.r_[1.0, 1.0, 1.0, 2.0, np.zeros(d_grp - 4)]              # the true coefficients
-y_grp = X_grp @ w_grp + rng.normal(0, 1.5, n_grp)
+y_grp = X_grp @ w_grp + rng.normal(0, 1.5, n_grp)              # e.g. a disease-severity score
 
 sel_lasso = np.zeros(d_grp)       # how often each feature gets selected
 sel_enet = np.zeros(d_grp)

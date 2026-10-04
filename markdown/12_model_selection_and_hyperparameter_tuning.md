@@ -112,6 +112,12 @@ Preprocessing choices (imputation strategy, scaler, number of selected features,
 polynomial features) are hyper-parameters too, and because they live in the same pipeline
 they are tuned in the same search.
 
+> **Real-life example.** A webmail provider's spam filter is a logistic regression on word
+> counts. How much the word "lottery" raises the spam score is a *parameter*, learned by `fit`
+> from millions of labelled e-mails. How strongly all the word weights are shrunk (`C`) is a
+> *hyper-parameter*: on its own training e-mails the weakest shrinkage always looks best, so
+> the team chooses `C` by how much spam the filter catches in e-mails it has never seen.
+
 ### 1.2 The problem, formally
 
 Write $\boldsymbol{\lambda} \in \Lambda$ for a configuration of hyper-parameters,
@@ -129,6 +135,12 @@ properties: each evaluation is *expensive* (it trains $k$ models), *noisy* (a di
 assignment or random seed gives a different value), and there is *no gradient* with respect
 to $\boldsymbol{\lambda}$ (many dimensions are integers or categories). Everything in this
 notebook is a strategy for spending a limited budget of evaluations wisely.
+
+> **Real-life example.** A video-streaming service tunes the recommender behind its home
+> page. One training run on a year of viewing logs takes two hours (*expensive*); the same
+> configuration re-run with another random seed gives a slightly different validation score
+> (*noisy*); and there is no derivative of that score with respect to "number of layers" or
+> "which loss function" (*no gradient*). Twenty configurations already cost almost two days.
 
 ### 1.3 Designing the search space $\Lambda$
 
@@ -150,6 +162,12 @@ notebook is a strategy for spending a limited budget of evaluations wisely.
 - **The budget.** Decide *before* searching how many configurations you can afford. Every
   strategy below is a way of getting more out of a fixed budget.
 
+> **Real-life example.** A weather service tunes the boosting model behind its rain
+> forecasts: the learning rate log-uniform between 0.01 and 0.3, the number of leaves an
+> integer; the metric is the Brier score its forecasters already report; the folds are split
+> by date, because the model will always be used on future days; and the eight-hour overnight
+> compute window, at ten minutes per configuration, fixes the budget at 48 configurations.
+
 ### 1.4 The data and the pipeline
 
 We use the churn data of notebook 4 as the **running example** that every strategy is
@@ -159,6 +177,12 @@ known generative process), which is exactly what we want while comparing search 
 because it keeps the fits fast and the ground truth known. The mandatory case study of
 section 10 then repeats the whole protocol on **real** data. The churn test set is split off
 first and used once, in section 7.
+
+> **Real-life example.** Read the table as a telecom provider's subscriber base: one row per
+> subscriber (tenure, monthly charges, contract, support tickets, …), `churned` = cancelled.
+> The tuned model ranks subscribers by risk, and a retention team that can make a few hundred
+> discount offers a month calls the riskiest first — which is why the metric is a ranking
+> measure, ROC-AUC, rather than accuracy.
 
 ```python
 churn = load_churn()        # one row per customer; some missing values remain, hence the imputer below
@@ -356,6 +380,7 @@ contrast, have $v^p$ distinct values in every dimension, so the important one is
 $v^{p-1}$ times more finely. The classic picture, and a simulation:
 
 ```python
+# e.g. x1 = the learning rate, x2 = a hyper-parameter that hardly matters, both rescaled to [0, 1]
 def toy_objective(x1, x2):
     """Only x1 matters (a bump at 0.65); x2 has a tiny, fast-oscillating effect.
 
@@ -444,6 +469,12 @@ multiply the budget. The default recommendation for tuning a model with more tha
 hyper-parameters is therefore random search with a budget of a few dozen configurations —
 or one of the smarter strategies below, which start from it.
 
+> **Real-life example.** A parcel company tunes the five hyper-parameters of a boosting model
+> that predicts delivery times; suppose only the learning rate really matters on its data. A
+> grid of three values per hyper-parameter costs 243 configurations yet tries only
+> *three* learning rates; 243 random configurations try 243 different ones — and the company
+> never needs to know in advance which hyper-parameter was the important one.
+
 ## 4. Multi-fidelity search: successive halving and early stopping
 
 Most configurations in a random search are bad, and one can *see* that they are bad early —
@@ -468,6 +499,11 @@ resources. scikit-learn implements the former as `HalvingGridSearchCV` /
 `HalvingRandomSearchCV` with `resource="n_samples"` (the default) or any integer
 hyper-parameter such as `n_estimators`; it is still marked experimental and must be
 enabled explicitly.
+
+> **Real-life example.** A hospital trains an image classifier on 200 000 chest X-rays, and
+> one full training run takes a day. Successive halving with `factor=3` screens 81 candidate
+> settings: all of them on 1/27 of the images, the best 27 on 1/9, the best 9 on 1/3 and only
+> the final 3 on all of them — about the cost of 12 full runs instead of 81.
 
 ```python
 # importing this module is what makes the halving searches available; "noqa: F401" tells code checkers
@@ -642,6 +678,11 @@ gained. The loop is:
 3. Choose $`\boldsymbol{\lambda}_{\text{next}} = \arg\max \mathrm{EI}(\boldsymbol{\lambda})`$ (cheap: the GP is fast to evaluate on a dense set of candidates).
 4. Evaluate $`f(\boldsymbol{\lambda}_{\text{next}})`$, add it to the data, go to 2.
 
+> **Real-life example.** A card issuer retrains its fraud-detection network on a year of
+> transactions, six GPU hours per run, so a random search over 100 configurations would take
+> almost a month. Bayesian optimisation makes every run count: after each one the surrogate
+> proposes the learning rate and dropout to try next, and a few dozen runs usually suffice.
+
 ### 5.1 From scratch on a one-dimensional test function
 
 We maximise the (negated) Forrester function $f(x) = -(6x - 2)^2 \sin(12x - 4)$ on $`[0, 1]`$,
@@ -661,6 +702,7 @@ from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
 # (filterwarnings hides only this warning category, and only when it comes from the GP module)
 warnings.filterwarnings("ignore", category=ConvergenceWarning, module="sklearn.gaussian_process")
 
+# e.g. x = one hyper-parameter rescaled to [0, 1] and f(x) = the validation score it gives
 def forrester(x):
     """The negated Forrester test function -(6x - 2)^2 sin(12x - 4) on [0, 1]; works on numbers and arrays."""
     return -((6 * x - 2) ** 2 * np.sin(12 * x - 4))
@@ -809,6 +851,13 @@ with kernel density estimates and proposes configurations that maximise their ra
 which turns out to be equivalent to maximising EI. Because the search space is defined
 *inside* the objective function ("define-by-run"), conditional spaces are trivial, and
 **pruners** stop unpromising trials early (multi-fidelity again, here across CV folds).
+
+> **Real-life example.** A voice-assistant team tunes its speech recogniser with Optuna.
+> Suppose the best few of 20 trials all used learning rates near 0.001 and the worst near 0.1:
+> TPE proposes the next trial where "good" trials are dense and "bad" ones rare. "Tune the
+> dropout only if the network has more than two layers" is an ordinary `if` in the objective,
+> and the pruner abandons a trial whose first epochs already trail the median.
+
 Optuna is optional in this course; the cell below runs only when it is installed.
 
 ```python
@@ -986,6 +1035,12 @@ and compares three numbers for the *same* tuned model: the best inner CV score (
 non-nested search reports), the nested CV score, and the accuracy on 10 000 fresh samples
 (the truth).
 
+> **Real-life example.** A football club's scout watches 16 youth players for one match each
+> and signs the one who played best. Part of that standout performance was a lucky day, so on
+> average the signed player performs worse for the club than in the match that got him
+> signed. The best of 16 CV scores is that standout match; nested CV judges the scouting
+> *procedure* by how its signings play afterwards.
+
 ```python
 from sklearn.datasets import make_classification   # random classification problems of a chosen size and difficulty
 from sklearn.pipeline import make_pipeline         # like Pipeline, but names the steps itself ("standardscaler", "svc")
@@ -997,6 +1052,7 @@ inner_cv, outer_cv = StratifiedKFold(3, shuffle=True, random_state=1), Stratifie
 rows = []
 for seed in range(10):                                         # 10 simulated datasets
     # 10 120 rows: the first 120 are the small dataset we tune on, the other 10 000 measure the truth
+    # e.g. 120 pilot-study patients with 20 blood markers each (did the drug work?), then 10 000 later patients
     Xs, ys = make_classification(n_samples=10_120, n_features=20, n_informative=4, n_redundant=2, flip_y=0.1, random_state=seed)
     X_small, y_small, X_truth, y_truth = Xs[:120], ys[:120], Xs[120:], ys[120:]
     search = GridSearchCV(make_pipeline(StandardScaler(), SVC()), svm_grid, cv=inner_cv).fit(X_small, y_small)
@@ -1542,6 +1598,12 @@ after each one record (i) the best 3-fold CV score seen so far and (ii) the accu
 8 000 *fresh* rows of the configuration that the search would return at that point.
 Everything is averaged over ten independent datasets.
 
+> **Real-life example.** On Kaggle, the public leaderboard scores every submission on a fixed
+> part of the hidden test set, and the final ranking uses the rest. Teams that submit hundreds
+> of small tweaks and keep whichever scores best on the public board often drop many places
+> when the private ranking is revealed: they have tuned to the luck of one fixed split — the
+> effect simulated below.
+
 ```python
 n_candidates, n_datasets = 40, 10
 # one row per dataset, one column per number of candidates m: the reported CV score / true accuracy of the pick
@@ -1551,6 +1613,7 @@ inner = StratifiedKFold(3, shuffle=True, random_state=0)
 
 for s in range(n_datasets):
     # 30 features, 3 of them informative, 20 % random labels; the first 150 rows are for training, the rest is the truth
+    # e.g. 150 machine runs with 30 sensor readings each, hand-labelled faulty/fine (often wrongly); 3 readings matter
     Xs, ys = make_classification(n_samples=8_150, n_features=30, n_informative=3, n_redundant=2,
                                  flip_y=0.20, class_sep=0.9, random_state=100 + s)
     X_s, y_s, X_big, y_big = Xs[:150], ys[:150], Xs[150:], ys[150:]
@@ -1782,6 +1845,11 @@ covers the things that make a search reproducible and fast.
 from joblib import Memory
 cached_pipe = Pipeline([("prep", preprocess), ("model", model)], memory=Memory("artifacts/cache", verbose=0))
 ```
+
+> **Real-life example.** A job portal sorts 500 000 job ads into occupations with a text
+> vectoriser followed by a logistic regression. Turning the ads into TF-IDF features takes
+> minutes per fold, fitting the classifier takes seconds; searching 30 values of `C` with
+> `memory=` set fits the vectoriser on each training fold once instead of 30 times.
 
 ### 9.3 The search's own settings
 

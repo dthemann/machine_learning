@@ -69,6 +69,12 @@ because the splits are nested, the boxes form a partition of the feature space. 
 function is constant on each box — a *piecewise-constant* predictor. The tree diagram and
 the partition are two pictures of the same object; here they are side by side.
 
+> **Real-life example.** The CART book (Breiman et al., 1984) motivates trees with heart-attack
+> patients at a San Diego hospital: who is at high risk of dying within 30 days, judged from the
+> first 24 hours? The fitted tree asks at most three questions — minimum systolic blood pressure
+> above 91? if so, older than 62.5? if so, sinus tachycardia present? — and each of its four
+> leaves is a box labelled high or low risk.
+
 ```python
 # make_classification generates a synthetic classification data set; DecisionTreeClassifier is scikit-learn's
 # CART tree, and plot_tree draws a fitted tree as a flowchart
@@ -77,6 +83,7 @@ from sklearn.tree import DecisionTreeClassifier, plot_tree
 
 # 300 points with 2 features, both informative (n_redundant=0: no feature is a combination of the others);
 # one blob per class, class_sep sets how far apart the classes sit, flip_y=0.08 re-draws 8 % of the labels at random
+# e.g. x1, x2 = standardised income and debt of 300 loan applicants, class 1 = defaulted on the loan
 X_toy, y_toy = make_classification(n_samples=300, n_features=2, n_redundant=0, n_informative=2,
                                    n_clusters_per_class=1, class_sep=1.1, flip_y=0.08,
                                    random_state=RANDOM_STATE)
@@ -117,6 +124,12 @@ repeat. For a balanced tree with $L$ leaves the depth is $`\log_2 L`$, so predic
 extremely fast and needs no arithmetic beyond comparisons — which is why trees are popular
 in embedded and latency-critical systems.
 
+> **Real-life example.** The Kinect motion sensor for the Xbox 360 labels every pixel of every
+> depth image with a body part (head, hand, elbow, …) by sending it down a few deep decision
+> trees, each question a cheap test on two depth readings near the pixel (Shotton et al., 2011).
+> Because a prediction is only a short walk of such tests, millions of pixels per second can be
+> labelled on a games console.
+
 ## 2. How a split is chosen
 
 ### 2.1 Measuring impurity
@@ -138,6 +151,11 @@ the node have different labels — equivalently, the error rate of a classifier 
 label from the node's own distribution. **Entropy** is the expected number of bits needed to
 encode the label (notebook 2), so the impurity *decrease* is the classical **information
 gain**. The **misclassification rate** is the error of the majority-class rule.
+
+> **Real-life example.** A node of an insurer's fraud tree holds 100 claims, 20 of them
+> fraudulent. Its Gini impurity is 1 − 0.8² − 0.2² = 0.32: two claims drawn at random from the
+> node have different labels 32 % of the time. Its entropy is 0.72 bits, and its
+> misclassification rate is 0.2 — calling every claim in the node genuine gets 20 of them wrong.
 
 ```python
 # 400 values of p, the proportion of class 1; the ends are nudged inwards because log2(0) is undefined
@@ -182,6 +200,12 @@ CART chooses, at every node, the $(j, t)$ that maximises $\Delta$. This is a **g
 choice: it never looks ahead to what the children could achieve later, and the globally
 optimal tree of a given size is NP-hard to find (Hyafil & Rivest, 1976). Greediness is the
 price of tractability, and it is one reason trees are unstable (section 8).
+
+> **Real-life example.** Split the insurer's node of 100 claims (20 fraudulent) by "filed within
+> a month of taking out the policy?". If 30 claims answer yes, 15 of them fraudulent, and 70
+> answer no, 5 of them fraudulent, the children have Gini impurities 0.5 and 0.13, their
+> weighted average is 0.3 × 0.5 + 0.7 × 0.13 ≈ 0.24, and the gain is 0.32 − 0.24 = 0.08. CART
+> computes this for every feature and threshold and keeps the question with the largest gain.
 
 For a numeric feature only the *order* of the values matters, so it is enough to try the
 midpoints between consecutive distinct values. Sorting each feature once costs
@@ -526,6 +550,11 @@ At `max_depth=None` the tree grows until every leaf is pure: training accuracy 1
 scattering of thin slivers carved around single mislabelled points. That is overfitting in
 its purest visual form, and section 6 is about preventing it.
 
+> **Real-life example.** A fully grown tree on an online shop's orders, predicting which will be
+> returned, ends up with leaves such as "size 38 boots, ordered after 23:00 on a Sunday, paid by
+> voucher → returned" that hold a single order, perhaps one returned by mistake. Such a leaf
+> describes one customer's evening, not a pattern the next customer will follow.
+
 ## 5. Regression trees
 
 ### 5.1 The variance criterion
@@ -543,6 +572,12 @@ squares. `criterion="squared_error"` is the default; `"absolute_error"` uses the
 each leaf and is robust to outliers but much slower; `"friedman_mse"` is a variant used
 inside gradient boosting (notebook 10).
 
+> **Real-life example.** An estate agent's regression tree for flat prices might first ask "floor
+> area at most 60 m²?", because that question makes the prices on each side as uniform as
+> possible (the smallest within-node sum of squares); each leaf then predicts the average price
+> of its flats. With `"absolute_error"` a leaf predicts the median instead, so one penthouse sold
+> for ten times the usual price cannot drag its leaf's prediction upwards.
+
 ### 5.2 The fitted function is a staircase
 
 ```python
@@ -552,6 +587,7 @@ def true_curve(x):
     """The noise-free target sin(2.2 x) + 0.35 x that the regression trees try to recover (works element-wise)."""
     return np.sin(2.2 * x) + 0.35 * x
 
+# e.g. x = time over about two years (rescaled), y = weekly sales of a seasonal product: a yearly cycle plus growth
 x_reg = np.sort(rng.uniform(-3, 3, 120))                       # 120 sorted x-values, uniform on [-3, 3)
 y_reg = true_curve(x_reg) + rng.normal(0, 0.25, len(x_reg))    # the curve plus Gaussian noise with sd 0.25
 grid_reg = np.linspace(-3, 3, 500)[:, None]                    # shape (500, 1): scikit-learn wants a 2-D X
@@ -585,9 +621,15 @@ range of the training data there is no new box: the outermost leaves extend to i
 the prediction is **flat forever**. For a trend that continues — prices, growth, time
 (notebook 16) — this is a fatal flaw that a linear model does not have.
 
+> **Real-life example.** A grid operator's tree predicts electricity demand from temperature,
+> trained on days between −10 and 32 °C. On a 38 °C heatwave day it predicts exactly the demand
+> of its hottest leaf, although every extra degree switches on more air-conditioning; a model
+> with a linear temperature term would at least keep rising.
+
 ```python
 from sklearn.linear_model import LinearRegression
 
+# e.g. the sales history only reaches x = 1; everything to the right of it is the future to be forecast
 x_train_ex = np.sort(rng.uniform(-3, 1, 100))          # the training inputs only cover [-3, 1)
 y_train_ex = true_curve(x_train_ex) + rng.normal(0, 0.25, len(x_train_ex))
 grid_ex = np.linspace(-3, 5, 500)[:, None]             # predict out to x = 5, well beyond the training range
@@ -631,6 +673,7 @@ from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test
 
 # 800 points, 10 features: 4 informative, 2 redundant (combinations of the informative ones), the other 4 pure
 # noise; class_sep=0.8 brings the classes closer and flip_y=0.12 adds label noise, so deep trees overfit
+# e.g. 10 lab measurements per patient, 4 of them relevant, and diagnoses with recording errors (flip_y)
 X_noisy, y_noisy = make_classification(n_samples=800, n_features=10, n_informative=4, n_redundant=2,
                                        class_sep=0.8, flip_y=0.12, random_state=RANDOM_STATE)
 # hold out 30 % as a test set; stratify=y_noisy keeps the class balance the same in both parts
@@ -692,6 +735,11 @@ $`T_0 \supset T_1 \supset \dots \supset \{\text{root}\}`$, each obtained from th
 by collapsing the "weakest link" — the internal node with the smallest increase in $R$ per
 leaf removed. So we do not search over subtrees: we compute the whole sequence at once.
 `cost_complexity_pruning_path` returns the $\alpha$ at which each collapse happens.
+
+> **Real-life example.** A bank hands its credit tree to loan officers as a printed rule list and
+> decides that every extra rule must cut the training impurity by at least a fixed amount to be
+> worth a line in the manual. That fixed amount is α, the price of a leaf: grow the full tree,
+> then collapse, weakest first, every branch whose improvement per leaf falls short of it.
 
 ```python
 full_tree = DecisionTreeClassifier(random_state=RANDOM_STATE).fit(Xn_tr, yn_tr)     # no limits: fully grown
@@ -826,6 +874,11 @@ feature quietly dominates the penalty. It is one less thing to get wrong — and
 reason to build a preprocessing pipeline, though you still want one for imputation and
 encoding.
 
+> **Real-life example.** A weather service predicts night frost from the evening temperature and
+> the day's rainfall. Whether temperature is stored in °C or °F, and rainfall in millimetres or
+> on a log scale, the tree asks the same questions ("below 3 °C?" is "below 37.4 °F?") and makes
+> exactly the same predictions.
+
 ### 7.2 Missing values and categorical features
 
 Since version 1.3 scikit-learn's trees handle `NaN` natively: at each split, missing values
@@ -834,7 +887,13 @@ imputation is required — although imputation plus a "was missing" indicator (n
 can still be better when the missingness is informative in a way a single split cannot
 capture.
 
+> **Real-life example.** On a used-car site the "date of last service" field is blank most often
+> for cars that were never serviced. A tree predicting breakdowns can learn to send the blanks
+> down the same branch as "serviced long ago", so the missingness itself becomes evidence,
+> without anyone filling in a made-up date.
+
 ```python
+# e.g. values lost at random, as when a lab sample is dropped or a form field is skipped by accident
 X_miss = Xn_tr.copy()
 # rng.random(shape) draws uniform numbers in [0, 1); "< 0.15" is True for about 15 % of the cells, which become NaN
 X_miss[rng.random(X_miss.shape) < 0.15] = np.nan                       # 15 % missing completely at random
@@ -862,6 +921,11 @@ alternatives are ordinal encoding (acceptable only when the order is real),
 `HistGradientBoostingClassifier(categorical_features=...)`, which splits on subsets of
 categories natively (notebook 10), or `TargetEncoder` (notebook 4).
 
+> **Real-life example.** A delivery company predicts late deliveries from, among other things,
+> the postcode district, with 120 levels. One-hot encoding turns it into 120 yes/no questions
+> about one district each, so the tree cannot simply ask "is it one of the 30 rural districts?";
+> every district has to earn its own split from its own share of the data.
+
 ### 7.3 Feature importance, and why the built-in one lies
 
 `feature_importances_` sums, over all nodes that split on a feature, the impurity decrease
@@ -876,6 +940,8 @@ informative *binary* feature and four pure-noise features of increasing cardinal
 # much the model's score drops; a feature the model really relies on causes a large drop
 from sklearn.inspection import permutation_importance
 
+# e.g. 1500 pupils: signal = missed more than 20 school days (yes/no), y_imp = failed the year; the noise
+# columns stand for meaningless codes such as a classroom number (20 levels) or a pupil ID (all distinct)
 n_imp = 1500
 signal = rng.integers(0, 2, n_imp)                                     # 1500 random 0/1 values (high end exclusive)
 y_imp = np.where(rng.random(n_imp) < 0.85, signal, 1 - signal)         # the label follows `signal` 85 % of the time
@@ -923,6 +989,12 @@ their cardinality exactly. Permutation importance, measured on *held-out* data, 
 assigns them all approximately zero. **Never report `feature_importances_` without this
 caveat**; notebook 17 develops permutation importance, partial dependence and SHAP properly.
 
+> **Real-life example.** A school's tree predicting which pupils will fail the year can rank the
+> pupil's ID number or the exact minute of enrolment (a different value for almost every pupil,
+> and no real information) above a genuinely informative yes/no flag such as "missed more than
+> 20 school days". A head teacher reading the built-in importances would conclude that ID
+> numbers matter.
+
 ## 8. Instability: the variance of a single tree
 
 Greedy, hierarchical fitting has a structural consequence: a small change in the data can
@@ -932,6 +1004,7 @@ resamples of the same training set.
 
 ```python
 # 400 points in 2-D, one blob per class, with 10 % of the labels re-drawn at random
+# e.g. two sensor readings of 400 machine parts, class 1 = failed inspection
 X_var, y_var = make_classification(n_samples=400, n_features=2, n_redundant=0, n_informative=2,
                                    n_clusters_per_class=1, class_sep=1.0, flip_y=0.10,
                                    random_state=RANDOM_STATE)
@@ -1033,9 +1106,15 @@ variance. The experiment: generate a problem whose true boundary is $`x_1 = 0`$,
 the whole cloud by $\theta$ and refit. The concept is *identical* at every angle; only the
 coordinate system changes. A linear model is rotation-invariant; a tree is not.
 
+> **Real-life example.** Doctors call an adult obese when the weight divided by the squared
+> height (the BMI) is 30 or more. In the plane of height and weight that boundary is a sloping
+> curve, so a tree given only height and weight needs a staircase of many height and weight
+> thresholds to trace it; given the BMI as a feature, it needs a single split.
+
 ```python
 from sklearn.linear_model import LogisticRegression
 
+# e.g. x1, x2 = standardised height and weight; once rotated, the class depends on both at once (like the BMI)
 def rotated_problem(theta_deg, n=300, seed=RANDOM_STATE):
     """A problem whose true boundary is x1 = 0, rotated by theta degrees.
 
@@ -1147,6 +1226,7 @@ notebook 14), use an oblique-split model, or use a linear model or SVM (notebook
 from sklearn.datasets import make_moons
 
 # two interleaving half-circles ("moons"); noise=0.35 is the sd of the Gaussian noise added to every point
+# e.g. two standardised soil readings of 600 fields, class 1 = crop disease found
 X_tune, y_tune = make_moons(n_samples=600, noise=0.35, random_state=RANDOM_STATE)
 
 def cv_curve(param, values, **fixed):
@@ -1751,6 +1831,7 @@ the free validation set that notebook 10 exploits.
 - Breiman, L. (2001). Random forests. *Machine Learning*, 45(1), 5–32. — `max_features` in its proper home.
 - Rudin, C. (2019). Stop explaining black box machine learning models for high stakes decisions and use interpretable models instead. *Nature Machine Intelligence*, 1, 206–215. — The argument for small trees and rule lists in consequential settings.
 - Grinsztajn, L., Oyallon, E., & Varoquaux, G. (2022). Why do tree-based models still outperform deep learning on typical tabular data? *NeurIPS 2022 Datasets and Benchmarks*. — Argues that axis-aligned, non-smooth, scale-invariant inductive bias is exactly what tabular data needs.
+- Shotton, J., Fitzgibbon, A., Cook, M., Sharp, T., Finocchio, M., Moore, R., Kipman, A., & Blake, A. (2011). Real-time human pose recognition in parts from single depth images. *Proceedings of CVPR 2011*, 1297–1304. — Decision forests that label every pixel of a Kinect depth image in real time (§1.2).
 - Efron, B., Hastie, T., Johnstone, I., & Tibshirani, R. (2004). Least angle regression. *The Annals of Statistics*, 32(2), 407–499. — Source of the diabetes data used in §11.2.
 
 ### Documentation and online resources

@@ -121,6 +121,7 @@ from sklearn.datasets import make_blobs   # generates Gaussian "blobs" of points
 from sklearn.cluster import KMeans
 
 # six blob centres in 2-D, arranged as three well-separated pairs
+# e.g. 840 products described by two measurements: 3 product families, each made in 2 variants
 centres = np.array([[0, 0], [2.5, 0], [18, 0], [20.5, 0], [9, 14], [11.5, 14]])
 # a list for n_samples gives the size of each blob ([140] * 6 repeats 140 six times); cluster_std is each blob's
 # standard deviation. Returns X of shape (840, 2) and y of shape (840,): the blob each point came from
@@ -254,6 +255,11 @@ of iterations — to a local minimum, not necessarily the global one.
 > "k-means". It is simultaneously one of the oldest and one of the most used algorithms in
 > data analysis (Jain, 2010).
 
+> **Real-life example.** A pizza chain wants to open five delivery bases in a city. Each row
+> is a customer address (two map coordinates); $k$-means with five clusters puts each base at
+> the centroid of the customers it serves and sends every customer to the nearest base, which
+> is exactly the minimisation of the total squared (straight-line) distance written above.
+
 ### 2.2 Lloyd's algorithm from scratch
 
 Twenty lines of NumPy. The `history` list records the state after every step so that we can
@@ -331,6 +337,7 @@ centroids; the colours are the current assignment.
 
 ```python
 # 600 points in 5 randomly placed blobs; the true labels are not needed, so they go into _
+# e.g. the addresses of 600 customers (two map coordinates) in five neighbourhoods
 X_demo, _ = make_blobs(n_samples=600, centers=5, cluster_std=1.1, random_state=0)
 
 start_rng = np.random.default_rng(0)
@@ -404,7 +411,13 @@ started. On the data below there is a seductive local optimum that merges two tr
 and splits a third in half, at an SSE nearly two and a half times the global one — and a
 large minority of random starts fall into it.
 
+> **Real-life example.** For the pizza chain of section 2.1 such a local optimum is a plan in
+> which one base has to serve two neighbourhoods far apart while two other bases split a
+> single neighbourhood between them. Nothing in the output flags it; only a run from another
+> start, ending with a lower total squared distance, reveals that the plan was poor.
+
 ```python
+# e.g. 500 customer addresses in four neighbourhoods
 X_local, _ = make_blobs(n_samples=500, centers=4, cluster_std=1.3, random_state=RANDOM_STATE)
 
 
@@ -491,6 +504,7 @@ from sklearn.cluster import MiniBatchKMeans   # k-means that updates the centroi
 import time                                   # time.perf_counter() is a high-resolution clock for timing
 
 # 200 000 points (the underscores in 200_000 are only digit separators) in 15 blobs
+# e.g. 200 000 listening sessions summarised by two taste scores, from 15 kinds of listener
 X_big, _ = make_blobs(n_samples=200_000, n_features=2, centers=15, cluster_std=1.0,
                       random_state=RANDOM_STATE)
 # the first positional argument is n_clusters. KMeans: a single run (n_init=1).
@@ -519,6 +533,12 @@ machine load rather than showing a clear winner. Reach for the mini-batch versio
 data do not fit in RAM, when they arrive as a stream, or when $n$ is in the millions — not
 reflexively.
 
+> **Real-life example.** A music-streaming service re-segments its listeners every night from
+> the last month's listening sessions — hundreds of millions of rows, each summarised by a few
+> dozen taste scores. The table does not fit in one machine's memory and new sessions arrive
+> all day, so `MiniBatchKMeans` reads it in batches of a few thousand rows and updates the
+> segment centroids as it goes.
+
 Finally, note what the $k$-means objective *is*: it is the distortion of a **vector
 quantiser** with $k$ code words. Replacing every point by its centroid is lossy compression,
 and the SSE is the reconstruction error. That is not an analogy — it is the problem Lloyd
@@ -532,6 +552,12 @@ clustering** produces the whole family of partitions at once: start with every p
 own cluster and repeatedly merge the two closest clusters until one remains. The record of
 merges is a binary tree — the **dendrogram** — and cutting it at any height yields a
 partition.
+
+> **Real-life example.** A news site clusters its articles by text similarity. At the bottom
+> of the dendrogram, near-identical agency reports of the same event merge first; higher up,
+> reports join into stories ("the election", "the transfer window"), and near the top into
+> sections such as politics and sport. The editors cut low to remove duplicates and high to
+> build the navigation menu.
 
 ### 3.1 Linkage criteria
 
@@ -559,6 +585,13 @@ Legendre (2014) is worth reading if you ever need to know exactly which "Ward" a
 software implements — there are two conventions, and SciPy's `ward` expects raw
 observations, not squared distances.
 
+> **Real-life examples.**
+> - *Single linkage:* a planner who counts two villages as one settlement whenever a chain of
+>   houses less than 200 m apart connects them is clustering the houses by single linkage, cut
+>   at 200 m.
+> - *Complete linkage:* a school-bus planner who wants groups of pupils' homes in which no two
+>   homes are more than 2 km apart gets them by cutting a complete-linkage tree at 2 km.
+
 ### 3.2 Dendrograms and the four linkages
 
 Two interleaved half-moons: a shape no centroid method can handle, but single linkage can.
@@ -571,6 +604,7 @@ from scipy.cluster.hierarchy import linkage, dendrogram, fcluster, cophenet
 from scipy.spatial.distance import pdist   # all pairwise distances, as a condensed 1-D array of length n(n-1)/2
 
 # noise = standard deviation of the Gaussian noise added to the points; y_moons says which moon each point is on
+# e.g. the positions of 300 houses along two curved, interlocking village streets
 X_moons, y_moons = make_moons(n_samples=300, noise=0.04, random_state=RANDOM_STATE)
 X_moons = StandardScaler().fit_transform(X_moons)
 methods = ["single", "complete", "average", "ward"]
@@ -631,10 +665,17 @@ Single linkage's strength is also its catastrophic weakness. Nine points forming
 bridge between two obvious clusters are enough to destroy it — the phenomenon known as
 **chaining**.
 
+> **Real-life example.** An ornithologist measures the wing length and body weight of birds of
+> two related species. A handful of hybrids with in-between measurements is enough for single
+> linkage to step from one species to the other and report a single group, while Ward still
+> finds the two species.
+
 ```python
+# e.g. wing length and body weight of 150 birds of each of two related species
 X_two, y_two = make_blobs(n_samples=[150, 150], centers=[[-3, 0], [3, 0]], cluster_std=0.6,
                           random_state=RANDOM_STATE)
 # 9 evenly spaced x-values between the blobs, with a tiny vertical jitter: shape (9, 2)
+# e.g. nine hybrids whose measurements lie between those of the two species
 bridge = np.column_stack([np.linspace(-2.2, 2.2, 9), rng.normal(0, 0.05, 9)])
 X_bridge = np.vstack([X_two, bridge])           # np.vstack stacks rows: (300, 2) + (9, 2) -> (309, 2)
 y_bridge = np.r_[y_two, np.full(9, -1)]         # np.r_ concatenates: the blob labels, then -1 for the 9 bridge points
@@ -697,10 +738,17 @@ Clusters are the connected components of the core points (two core points are li
 one is within $\varepsilon$ of the other), with border points attached to a cluster that
 reaches them. The number of clusters is an *output*, not an input.
 
+> **Real-life example.** A police department maps last year's burglaries, one row per burglary
+> with its two map coordinates. With `eps` = 300 m and `min_samples` = 8, a burglary with at
+> least 8 burglaries within 300 m (itself included) is a core point of a hot spot, one on the
+> fringe of a hot spot is a border point, and an isolated break-in is noise. Hot spots of any
+> shape — a street, a housing estate — get extra patrols; noise points do not.
+
 ```python
 from sklearn.cluster import DBSCAN
 
 # 180 points split between two blobs; a list for cluster_std gives each blob its own spread
+# e.g. burglary locations on a map: two hot spots here, 18 isolated break-ins added below
 X_dens, _ = make_blobs(n_samples=180, centers=[[0, 0], [3.2, 1.2]], cluster_std=[0.45, 0.30],
                        random_state=RANDOM_STATE)
 X_dens = np.vstack([X_dens, rng.uniform(-2, 5.5, size=(18, 2))])   # sprinkle some noise: 18 uniform points
@@ -806,6 +854,12 @@ specify `min_cluster_size` (how big a group has to be to count), which is a far 
 intuitive quantity than a radius. Since scikit-learn 1.3 it ships as
 `sklearn.cluster.HDBSCAN`.
 
+> **Real-life example.** An ambulance service clusters a year of emergency-call locations to
+> place standby crews. Calls are packed tightly in the city and spread thinly over the
+> countryside: an `eps` that resolves the city's hot spots calls every village noise, and one
+> large enough for the villages fuses the city into one blob. HDBSCAN needs only
+> `min_cluster_size` ("a standby point needs at least 50 calls a year") and can find both.
+
 ```python
 import sklearn.cluster
 
@@ -814,6 +868,7 @@ print(f"sklearn.cluster.HDBSCAN available: {HAS_HDBSCAN}")
 
 dens_rng = np.random.default_rng(1)
 # normal(mean, std, (rows, cols)): a round 2-D Gaussian blob with its own spread; uniform(low, high, shape): noise
+# e.g. emergency-call locations: a dense city centre, a spread-out rural district, a town, scattered calls
 X_var = np.vstack([dens_rng.normal([0, 0], 0.18, (200, 2)),      # tight
                    dens_rng.normal([4, 4], 1.60, (200, 2)),      # diffuse
                    dens_rng.normal([-4, 4], 0.60, (150, 2)),     # medium
@@ -888,6 +943,12 @@ Two immediate payoffs over $k$-means: clusters can be elongated and correlated (
 covariance is free), and assignments are **soft** — each point gets a probability of
 belonging to each component rather than a hard label.
 
+> **Real-life example.** The heights of adults in a health survey that did not record sex form
+> a mixture of two roughly Gaussian components, for example women around 166 cm and men around
+> 179 cm, with mixing weights close to one half each. Sex is the latent variable: never
+> observed, yet a person of 190 cm almost certainly comes from the "men" component, while one
+> of 172 cm is genuinely ambiguous — a soft assignment.
+
 ### 5.2 The EM algorithm
 
 We want the maximum-likelihood parameters, maximising
@@ -920,6 +981,12 @@ constructs a lower bound on $\ell$ that touches it at the current parameters, an
 maximises that bound. Like Lloyd's algorithm, EM converges to a local optimum, so multiple
 restarts (`n_init`) matter. Bishop (2006), chapter 9, gives the full derivation via
 Jensen's inequality; McLachlan-style treatments appear in ESL chapter 8.
+
+> **Real-life example.** For the survey heights of section 5.1, start from a rough guess
+> (women 160 cm, men 185 cm). E-step: compute for every person the probability of each
+> component, given their height and the current guess — say 0.7 "man" for someone of 175 cm.
+> M-step: recompute each component's mean, spread and weight, counting every person in
+> proportion to those probabilities. Repeat until the guesses stop moving.
 
 ### 5.3 EM from scratch in 2-D
 
@@ -1007,6 +1074,7 @@ Three overlapping, strongly anisotropic Gaussians — the case $k$-means cannot 
 ```python
 gmm_rng = np.random.default_rng(3)
 # three elongated 2-D Gaussians; multivariate_normal(mean, covariance matrix, number of points) -> (600, 2) in total
+# e.g. two blood-test values of 600 patients from three disease subtypes
 X_gmm = np.vstack([
     gmm_rng.multivariate_normal([0, 0], [[2.0, 1.5], [1.5, 1.5]], 250),
     gmm_rng.multivariate_normal([5, 1], [[1.0, -0.7], [-0.7, 1.2]], 150),
@@ -1178,6 +1246,12 @@ $n$ points,
 and **lower is better**. Both penalise complexity; BIC's penalty grows with $n$, so it is
 more conservative and is the usual default for choosing the number of mixture components.
 
+> **Real-life example.** An online shop fits mixtures with one to seven components to its
+> customers' (log) annual spend and number of orders. BIC answers the marketing team's
+> question "is there evidence for a fourth customer segment?": the fourth component's extra
+> means, covariances and weight must raise the log-likelihood by more than BIC charges for
+> them, a charge that grows with the number of customers.
+
 ```python
 comp_range = range(1, 8)                         # 1 to 7 components
 cov_types = ["spherical", "diag", "tied", "full"]
@@ -1290,6 +1364,7 @@ def silhouette_by_hand(X, labels):
     return s
 
 
+# e.g. 400 gym members described by two training-habit scores, in four true segments
 X_sil, y_sil = make_blobs(n_samples=400, centers=4, cluster_std=1.0, random_state=RANDOM_STATE)
 lab_sil = KMeans(n_clusters=4, n_init=10, random_state=RANDOM_STATE).fit_predict(X_sil)
 mine, reference = silhouette_by_hand(X_sil, lab_sil), silhouette_samples(X_sil, lab_sil)   # both shape (400,)
@@ -1350,6 +1425,12 @@ clusters are forced into one block whose bars fall away in a long tail towards z
 are the points sitting with a cluster they do not belong to. At $k=6$ two clusters have been
 split in half; the four thin blocks that result lie almost entirely *left* of the mean line,
 which is the signature of over-clustering.
+
+> **Real-life example.** A gym chain segments its members by when and how often they train.
+> A member with a negative silhouette was put in the "early birds" segment but is on average
+> closer to the "weekend only" members; a segment whose block sits mostly near zero is one the
+> marketing team should not write a tailored e-mail for, because its members are hardly
+> different from those of the neighbouring segment.
 
 Two cheaper scalar indices are often reported alongside:
 
@@ -1432,6 +1513,12 @@ relabelling, because cluster identities are arbitrary.
   measure how much knowing the cluster tells you about the label, normalised to $`[0, 1]`$.
 - **Homogeneity** (each cluster contains one class) and **completeness** (each class is in
   one cluster) split the story in two; their harmonic mean is the **V-measure**.
+
+> **Real-life example.** A library clusters 10 000 books by their text and compares the
+> result with the librarians' subject categories. Homogeneity asks whether each cluster holds
+> a single subject (no cookbooks among the crime novels), completeness whether each subject
+> sits in a single cluster (all crime novels together, not spread over five clusters). Putting
+> every book in its own cluster scores perfect homogeneity and miserable completeness.
 
 ```python
 from sklearn.datasets import load_digits                  # 8 x 8 images of handwritten digits
@@ -1540,6 +1627,12 @@ Every detector in scikit-learn exposes `decision_function` (negative = outlier) 
 `score_samples`, plus a `contamination` parameter that sets the threshold — the *assumed*
 proportion of anomalies.
 
+> **Real-life examples.**
+> - *Outlier detection:* an insurer screens last year's 200 000 car-insurance claims, among
+>   which some fraudulent ones are already hidden, and asks which of *these* claims to audit.
+> - *Novelty detection:* an aircraft-engine maker records sensor data from engines known to be
+>   healthy, then checks the data of every new flight against that clean picture.
+
 ### 7.1 Four detectors and their inductive biases
 
 | Detector | Model of "normal" | Key parameters |
@@ -1555,6 +1648,11 @@ region gets separated from the rest after very few splits; a point inside a dens
 requires many. The average path length over many trees, normalised by the expected path
 length in a random binary search tree, is the anomaly score. It costs $O(n \log n)$, needs
 no distance computations and handles high dimensions far better than density methods.
+
+> **Real-life example.** Among a bank's card payments, a payment of 9 000 euros at 3 a.m. in a
+> country where the card has never been used is cut off from all the others by two or three
+> random splits ("amount above 5 000?", "hour before 5?"), whereas a 40-euro supermarket
+> payment at 6 p.m. shares its region with thousands of others and needs many splits.
 
 ### 7.2 What the decision functions look like
 
@@ -1604,6 +1702,7 @@ def build_detectors(contamination):
     }
 
 
+# e.g. temperature and vibration of a pump running in two modes (idle, full load), plus 25 faulty readings
 X_anom, y_anom = make_contaminated(np.random.default_rng(RANDOM_STATE), mode="two modes")
 detectors = build_detectors(y_anom.mean())       # y_anom.mean() is the true outlier fraction, 25 / 525
 
@@ -1655,6 +1754,12 @@ With no labels you cannot measure detector quality — so **make** labels: injec
 anomalies into clean data and measure how well they are recovered. Because anomalies are
 rare, use **average precision** (the area under the precision–recall curve, notebook 7),
 not accuracy or ROC-AUC, which are both flattered by the huge negative class.
+
+> **Real-life example.** A company's security team cannot label millions of network
+> connections, but it can replay 200 simulated attacks into one day's normal traffic and check
+> how near the top of the detector's ranking they land. With attacks far below 1 % of the
+> connections, a detector that flags nothing is already more than 99 % accurate — useless,
+> which is why average precision is the number to watch.
 
 ```python
 modes = ["one mode", "two modes"]
@@ -1815,7 +1920,13 @@ practitioners the most credibility: **an algorithm asked for $k$ clusters return
 clusters, and the standard diagnostics will not necessarily tell you that they are
 meaningless.**
 
+> **Real-life example.** A marketing agency asked for "five customer personas" will deliver
+> five — with names, photos and slogans — even when the customers' spending and visit
+> frequency form one continuous cloud with no gaps in it. The figure below shows what such a
+> request produces when there is genuinely nothing to find.
+
 ```python
+# e.g. 600 customers' (rescaled) spending and visit frequency, spread evenly with no natural groups
 X_unif = rng.uniform(0, 1, size=(600, 2))        # 600 points spread uniformly over the unit square: no clusters
 
 ks_u = list(range(2, 11))

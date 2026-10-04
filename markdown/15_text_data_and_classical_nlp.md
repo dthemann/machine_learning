@@ -116,6 +116,12 @@ of tens of thousands of words. **Offline, the loader falls back to the review co
 product type as label**, and prints a notice; the code below works in both cases and the
 text points out where the two corpora behave differently.
 
+> **Real-life examples.**
+> - *Sentiment:* an online shop scores every new review as it arrives, so that the negative ones
+>   reach the customer-care team the same day instead of at the end of the month.
+> - *Topic:* a newspaper sorts its incoming reader mail by subject — sport, science, politics,
+>   technology — and forwards each letter to the right desk: the 20 Newsgroups task in modern form.
+
 ```python
 reviews = load_reviews()     # DataFrame, one row per review: review_id, product, text, rating, sentiment (0/1)
 news = load_newsgroups()     # DataFrame with a "text" and a "label" column
@@ -236,6 +242,11 @@ sounds trivial and is not: is "don't" one token or two? Is "well-made" one? Is "
 Is "U.S." three tokens? The simplest useful tokeniser is a regular expression that finds
 runs of word characters; scikit-learn's default, `r"(?u)\b\w\w+\b"`, additionally drops
 single-character tokens ("a", "I", "5").
+
+> **Real-life example.** A pharmacy's online shop indexes its product names with scikit-learn's
+> default token pattern. "Vitamin C 500 mg" and "Vitamin D 500 mg" both become `vitamin`, `500`,
+> `mg`, because the single letters C and D are dropped — a customer searching for one is shown
+> the other. A token pattern that keeps single characters fixes it.
 
 ```python
 sentence = "I don't think it's well-made, but 5 stars for the price! Not bad at all."
@@ -379,6 +390,11 @@ inflections into one feature, which helps when data are scarce and hurts when th
 inflection matters ("good" vs. "goods"). The cell below shows a toy suffix stripper — and its
 failure modes — and uses NLTK's Porter stemmer and WordNet lemmatiser if they are installed.
 
+> **Real-life example.** A public library's catalogue search stems titles and queries alike, so a
+> reader who types "gardening" also finds *Garden Design* and *Gardens of Italy*: the Porter
+> stemmer maps all three words to "garden". The price is over-stemming — "university" and
+> "universe" both become "univers", so a search for one also returns the other.
+
 ```python
 def naive_stem(word: str) -> str:
     """A caricature of a stemmer: strip the first matching suffix from a list.
@@ -430,6 +446,12 @@ any language without a tokeniser; `analyzer="char_wb"` in scikit-learn builds th
 word boundaries. The price is feature-space growth: the number of distinct bigrams grows
 roughly with the corpus size, most occurring once.
 
+> **Real-life example.** A help desk in Switzerland receives e-mails in German, French and
+> Italian and must pass each one to the right team before anyone reads it. Character n-grams
+> need no tokeniser for any of the three languages: "sch" and "ung" are typical of German, "eau"
+> and "qu'" of French, "zio" and "gli" of Italian, so a linear model on character n-gram counts
+> recognises the language from a single sentence.
+
 ```python
 def ngrams(tokens: list[str], n: int) -> list[str]:
     """Return every run of n consecutive tokens, each joined into one string with spaces."""
@@ -457,6 +479,12 @@ The consequences are practical: a few hundred words cover most of the tokens (th
 easy to estimate and nearly useless as features), while a very long tail of words occurs
 once or twice (informative but unreliable). `min_df` and `max_df` in section 3 are the
 knobs that cut both ends of this curve.
+
+> **Real-life example.** In the Brown Corpus — a million words of edited American English printed
+> in 1961 — "the" alone makes up nearly 7 % of all tokens and "of" about 3.5 % (Kučera & Francis,
+> 1967), while a large share of the distinct words occur only once. A classifier trained on such
+> text sees the commonest words in almost every document, where they separate nothing, and most
+> of the vocabulary too rarely to learn a reliable weight.
 
 ```python
 def rank_frequency(texts) -> np.ndarray:
@@ -512,6 +540,12 @@ number of times term $t$ occurs, for a vocabulary of $V$ terms fixed on the trai
 The matrix $\mathbf{X} \in \mathbb{R}^{n \times V}$ is the **term–document matrix** (rows =
 documents, columns = terms). It is extremely sparse, so scikit-learn returns a
 `scipy.sparse` matrix — never call `.toarray()` on a large one.
+
+> **Real-life example.** An e-mail provider's spam filter turns every incoming message into word
+> counts over a vocabulary of 100 000 words. A message with high counts of "winner", "free",
+> "claim" and "prize" scores as spam wherever in the message those words stand; throwing the
+> order away costs the filter little, because what gives spam away is mostly *which* words
+> appear.
 
 Two hyper-parameters shape the vocabulary: `min_df` drops terms that occur in fewer than
 `min_df` documents (the long Zipf tail — typos, names, noise), and `max_df` drops terms that
@@ -589,6 +623,11 @@ roughly half of the vocabulary (the *hapax legomena* — terms that occur in a s
 document) with no loss of accuracy, while `max_df` catches a handful of ubiquitous terms.
 The synthetic corpus has no such tail: every one of its 130-odd terms occurs in dozens of
 documents.
+
+> **Real-life example.** In a law firm's archive of contracts, "agreement", "party" and "hereby"
+> occur in nearly every document and say nothing about which kind of contract it is — `max_df`
+> removes them. Client names and clause numbers that appear in a single contract cannot help a
+> model either, and `min_df` removes those.
 
 ### 3.1b How big is the feature space? Vocabulary and sparsity
 
@@ -695,6 +734,11 @@ does not divide by zero). The textbook variant is $\mathrm{idf}(t) = \log(n/\mat
 (`smooth_idf=False`). A further common option is **sublinear tf**,
 $\mathrm{tf} \leftarrow 1 + \ln \mathrm{tf}$ (`sublinear_tf=True`): the twentieth occurrence
 of a word is less informative than the first.
+
+> **Real-life example.** A job board ranks CVs for the search "Kubernetes engineer". The word
+> "engineer" occurs in a large share of all CVs and gets a low idf; "Kubernetes" occurs in few and
+> gets a high one, so CVs that mention Kubernetes rise to the top. The L2 normalisation stops a
+> ten-page CV from winning merely because it is long.
 
 Let us implement the default variant by hand and check that it reproduces
 `TfidfVectorizer` to floating-point precision.
@@ -823,6 +867,12 @@ great" contains the strongly positive unigram "great". Two classical remedies:
    token between a negation word and the next punctuation mark with `NOT_`, so that
    "not great at all" becomes "not NOT_great NOT_at NOT_all". The classifier then learns
    separate weights for "great" and "NOT_great".
+
+> **Real-life example.** A hospital wants to flag radiology reports that mention pneumonia for
+> follow-up. "No evidence of pneumonia" contains the word "pneumonia" just as "Findings
+> consistent with pneumonia" does, so a bag-of-words flag fires on both, and many of its alerts
+> would be negated findings. Clinical text-mining tools detect negation scope for exactly this
+> reason.
 
 We implement the second as a `preprocessor` for `TfidfVectorizer` and compare the three
 models on a few hand-written probe sentences, which is where the difference shows most
@@ -1067,6 +1117,12 @@ collection, building features or tracking themes over time. All three methods be
 factorise $\mathbf{X} \approx \mathbf{W}\mathbf{H}$ with $\mathbf{W} \in \mathbb{R}^{n \times K}$
 (document–topic weights) and $\mathbf{H} \in \mathbb{R}^{K \times V}$ (topic–term weights).
 
+> **Real-life example.** A city council receives 30 000 free-text responses to a public
+> consultation on its transport plan. Nobody can read them all, and there are no labels; a topic
+> model sorts them into themes such as "cycle lanes", "bus fares" and "parking", each response
+> being a mixture of a few themes, so that staff can read a sample from every theme and report
+> how often each one was raised.
+
 - **NMF** (non-negative matrix factorisation; Lee & Seung, 1999; notebook 14) minimises
   $`\|\mathbf{X} - \mathbf{W}\mathbf{H}\|_F^2`$ subject to $\mathbf{W}, \mathbf{H} \ge 0$. The
   non-negativity makes the factors *additive* and hence readable: a document is a sum of
@@ -1292,6 +1348,12 @@ is genuinely high-dimensional — yet they already separate the corpus into visi
 product types are *not* its dominant axis). In practice LSA uses 100–300 components, and
 its document coordinates feed a classifier or a nearest-neighbour search.
 
+> **Real-life example.** A patent examiner searching for earlier inventions about "automobile
+> brakes" also needs the documents that say "car" and "braking". The TF-IDF vectors of the two
+> wordings share no terms, but because "car" and "automobile" co-occur with the same other words
+> (engine, wheel, driver), LSA places such documents close together — the original motivation of
+> Deerwester et al. (1990).
+
 ## 6. Word embeddings
 
 ### 6.1 The distributional hypothesis
@@ -1303,6 +1365,11 @@ fix this by representing each word as a dense vector $`\mathbf{v}_w \in \mathbb{
 behind every embedding method is the **distributional hypothesis** (Harris, 1954; Firth,
 1957: "you shall know a word by the company it keeps"): words that occur in similar
 *contexts* have similar meanings. So: count contexts.
+
+> **Real-life example.** On a recipe website, British cooks write "courgette" and American cooks
+> "zucchini". The two words almost never appear in the same recipe, yet both are surrounded by
+> "slice", "grill", "olive oil" and "garlic", so embeddings learned from the recipes place them
+> side by side — and a search for one can return recipes that use the other.
 
 ### 6.2 Embeddings from a co-occurrence matrix: PPMI + SVD
 
@@ -1323,6 +1390,12 @@ That is the whole recipe — a close cousin of LSA on a word–word instead of a
 matrix, and, remarkably, Levy & Goldberg (2014) showed that word2vec's skip-gram with
 negative sampling implicitly factorises a shifted PMI matrix, so the two families are far
 closer than they look.
+
+> **Real-life example.** PMI is the "lift" of supermarket basket analysis. Nappies and baby wipes
+> land in the same basket far more often than their separate popularity predicts: high PMI.
+> Bread and milk share baskets even more often, but only about as often as two items that are
+> each in most baskets would anyway: PMI near zero. Raw co-occurrence counts rank bread and
+> milk first; PMI ranks the informative pair first.
 
 ```python
 docs_tok = [re.findall(r"[a-z']+", t.lower()) for t in reviews["text"]]     # one list of tokens per review
@@ -1482,6 +1555,11 @@ et al., 2017) represents a word as the sum of its character $n$-gram vectors, so
 misspellings and unseen inflections still get sensible vectors. The `gensim` library
 implements all three; the cell below trains skip-gram on our corpus if it is installed.
 
+> **Real-life example.** Skip-gram is not limited to words. A holiday-rental website can treat
+> each visitor's sequence of clicked listings as a "sentence" and each listing as a "word";
+> listings viewed in the same sessions then get nearby vectors, and "similar listings" are
+> simply nearest neighbours — learned from behaviour, without reading a single description.
+
 ```python
 try:
     from gensim.models import Word2Vec
@@ -1576,6 +1654,11 @@ training and the test set is an answer key. Check for exact duplicates before sp
 (and, for near-duplicates, hash shingles or cluster by cosine similarity), and split by
 *source* (user, thread, document) when documents share one.
 
+> **Real-life example.** A property portal trains a model to classify flat listings by type. An
+> agent letting twenty flats in one new building pastes the same description into all twenty
+> listings; after a random split some copies sit in training and others in test, and the model
+> is graded on text it has memorised. Splitting by agent (or by building) gives the honest score.
+
 ```python
 n_dup = reviews["text"].duplicated().sum()             # texts that repeat an earlier text exactly
 train_set = set(X_text_train)                          # a set makes `t in train_set` a fast lookup
@@ -1599,6 +1682,12 @@ notebook 7), *temporal drift* (vocabulary changes: evaluate on later data than y
 on), *domain shift* (movie reviews → restaurant reviews), and annotator disagreement — for
 many text tasks humans agree with each other only 80–90 % of the time, which caps what any
 model can honestly claim.
+
+> **Real-life example.** A bank's complaint classifier trained on e-mails from 2019 would have met,
+> in spring 2020, words such as "lockdown", "furlough" and "payment holiday" that it had rarely or
+> never seen, along with new kinds of complaint. A random split of the 2019 e-mails could not
+> have warned anyone; a split by date — train on earlier months, test on later ones — is the
+> honest rehearsal.
 
 **Multilingual text.** Tokenisation is language-specific (Chinese and Japanese have no
 spaces; German compounds; Turkish "I" lower-cases to a dotless "ı"). Character $n$-grams
@@ -1638,6 +1727,11 @@ multiset of words, in a different order, with a different meaning. Under a unigr
 vectoriser the two feature vectors are *identical*, so every model downstream — naive
 Bayes, logistic regression, an SVM, a random forest, anything at all — must assign them
 the same score.
+
+> **Real-life example.** An insurer triages written accident reports. "The other driver hit our
+> customer" and "Our customer hit the other driver" contain exactly the same words, so a unigram
+> model must give them the same score — yet they describe opposite liability and opposite
+> payouts.
 
 ```python
 # (description, sentence A, sentence B): the two sentences use exactly the same words in a different order
@@ -1948,6 +2042,12 @@ predictions are pushed past 0.99 or below 0.01. Its *ranking* of documents stays
 cannot be read as probabilities, so any downstream decision with a threshold, a cost
 matrix or a human reading "94 % confident" needs logistic regression, or naive Bayes
 wrapped in `CalibratedClassifierCV` (notebook 7).
+
+> **Real-life example.** An online forum hides a post automatically when P(abusive) is above
+> 0.95 and sends posts between 0.5 and 0.95 to a human moderator; the rule assumes that 0.95
+> means "wrong about one time in twenty". With naive Bayes' scores piled up beyond 0.99 and
+> below 0.01, borderline posts skip the human queue and are removed or waved through
+> automatically.
 
 ### 8.4 The tables
 
@@ -2857,6 +2957,7 @@ and `min_df=2` usually give a small, consistent gain on long documents.
 - Spärck Jones, K. (1972). A statistical interpretation of term specificity and its application in retrieval. *Journal of Documentation*, 28(1), 11–21. — The origin of inverse document frequency.
 - Salton, G., Wong, A., & Yang, C. S. (1975). A vector space model for automatic indexing. *Communications of the ACM*, 18(11), 613–620. — Documents as vectors, cosine similarity.
 - Zipf, G. K. (1949). *Human Behavior and the Principle of Least Effort*. Addison-Wesley. — The rank–frequency law of section 2.4.
+- Kučera, H., & Francis, W. N. (1967). *Computational Analysis of Present-Day American English*. Brown University Press. — The Brown Corpus word frequencies quoted in section 2.4.
 - Porter, M. F. (1980). An algorithm for suffix stripping. *Program*, 14(3), 130–137. — The Porter stemmer.
 - Sennrich, R., Haddow, B., & Birch, A. (2016). Neural machine translation of rare words with subword units. *Proceedings of ACL 2016*. — Byte-pair encoding for tokenisation.
 - Pang, B., Lee, L., & Vaithyanathan, S. (2002). Thumbs up? Sentiment classification using machine learning techniques. *Proceedings of EMNLP 2002*, 79–86. — The classic sentiment paper; introduces the NOT_ negation marking used in section 4.2 (after Das & Chen, 2001).

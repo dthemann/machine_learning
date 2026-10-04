@@ -123,6 +123,12 @@ $\mathbf{a}, \mathbf{b} \in \mathbb{R}^d$ are
 | Minkowski ($`\ell_p`$) | $`\big(\sum_j \lvert a_j - b_j \rvert^p\big)^{1/p}`$ | $p = 1, 2$ above; $p \to \infty$ gives the Chebyshev distance $`\max_j \lvert a_j - b_j\rvert`$ |
 | Cosine distance | $`1 - \dfrac{\mathbf{a}^\top \mathbf{b}}{\Vert \mathbf{a}\Vert _2 \Vert \mathbf{b}\Vert _2}`$ | ignores the length of the vectors; the standard choice for text and embeddings |
 
+> **Real-life example.** A news site represents each article by its word counts. A 300-word
+> brief and a 3 000-word feature on the same election use the same words in similar
+> proportions, so their cosine distance is small, while their Euclidean distance is huge because
+> every count in the long article is about ten times larger. For "more like this" links, cosine
+> finds articles on the same topic rather than articles of the same length.
+
 Every one of these adds up per-feature differences, so a feature measured in large units
 dominates a feature measured in small units *purely because of its units*. If one column
 is annual income in dollars (spread ~ 50 000) and another is the number of children
@@ -265,6 +271,7 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.model_selection import train_test_split     # splits arrays into random train and test parts
 
 # noise: standard deviation of the Gaussian noise added to the points
+# e.g. two standardised blood values per patient, class 1 = has the condition
 X_moons, y_moons = make_moons(n_samples=400, noise=0.3, random_state=RANDOM_STATE)
 # half for training, half for testing; stratify keeps the class proportions equal in both halves
 Xm_train, Xm_test, ym_train, ym_test = train_test_split(X_moons, y_moons, test_size=0.5, stratify=y_moons,
@@ -278,6 +285,7 @@ for k in [1, 5, 15]:
         # :2d pads an integer to 2 characters, :8s a string to 8; :.1e is scientific notation with 1 decimal
         print(f"k={k:2d} weights={weights:8s} predictions agree: {agree:.3f}   max |Δ proba| = {max_diff:.1e}")
 
+# e.g. x_reg = time within one tidal cycle (about 12.4 hours), y_reg = water level at a harbour gauge in metres
 x_reg = np.sort(rng.uniform(0, 1, 80))                       # 80 sorted x-values in [0, 1)
 y_reg = np.sin(2 * np.pi * x_reg) + rng.normal(0, 0.3, 80)   # a sine curve plus noise with standard deviation 0.3
 x_grid = np.linspace(0, 1, 400)[:, None]                     # (400, 1): scikit-learn expects a 2-D X
@@ -300,6 +308,12 @@ regression: max |Δ prediction| between our kNN and KNeighborsRegressor = 0.0e+0
 The regressor shows the *shape* of a $k$<span></span>NN fit: a piecewise-constant function (the average
 jumps whenever the neighbour set changes), rough for small $k$ and over-smoothed for large
 $k$. This is the bias–variance trade-off of notebook 5 with a single knob.
+
+> **Real-life example.** A weather service can forecast tomorrow's rainfall with the "analogue"
+> method: find the past days whose weather maps looked most like today's and average the rain
+> that fell on the days after them. Copying the single closest day inherits whatever freak
+> thunderstorm followed it (high variance); averaging the 3 000 closest days of a 30-year
+> archive mixes in quite different weather and drifts towards the long-term average (high bias).
 
 ```python
 fig, axes = plt.subplots(1, 3, figsize=(15, 3.8), sharey=True)    # sharey: all panels use the same y-axis
@@ -346,6 +360,7 @@ to left. We also add the ± 1 standard-error band and apply the one-standard-err
 measurably worse).
 
 ```python
+# e.g. the same two blood values, now for 1000 patients
 X_big, y_big = make_moons(n_samples=1000, noise=0.3, random_state=RANDOM_STATE)
 ks = np.array([1, 2, 3, 5, 7, 11, 15, 21, 31, 51, 75, 101, 151, 251, 401])     # a roughly log-spaced grid of k
 train_acc, cv_mean, cv_se = [], [], []
@@ -406,6 +421,12 @@ rule errs with probability $r(\mathbf{x}) = \min(p, 1-p)$, and $2p(1-p) = 2r(1-r
 Averaging over $\mathbf{x}$ (and using Jensen's inequality for the middle term) gives the
 bound. For $K$ classes the middle term becomes $R^\star\big(2 - \tfrac{K}{K-1} R^\star\big)$.
 
+> **Real-life example.** Suppose a dermatology clinic classifies skin lesions from a few image
+> measurements, and even the best possible rule errs on 4 % of lesions, because some benign and
+> malignant lesions look identical on those measurements. With an unlimited archive of diagnosed
+> cases, copying the diagnosis of the single most similar archived lesion would err on at most
+> 2 × 0.04 × 0.96 ≈ 7.7 % of new patients.
+
 The message is striking: *half of all the information in an infinite training set is
 contained in the single nearest neighbour*. The catch is the word "infinite" — in high
 dimensions the nearest neighbour is nowhere near the query (section 3). Let us verify the
@@ -424,6 +445,7 @@ def two_gaussians(n, delta, d=2):
     X[:, 0] += delta * y                 # shift the first coordinate of the class-1 points only
     return X, y
 
+# e.g. two standardised measurements of benign (0) and malignant (1) skin lesions; Δ = how different they are
 deltas = np.linspace(0.5, 4.0, 8)        # 0.5, 1.0, ..., 4.0
 rows = []
 for delta in deltas:
@@ -494,6 +516,15 @@ families of remedies exist:
   neighbours in milliseconds among billions of vectors — this is what powers
   embedding-based search and retrieval-augmented generation.
 
+> **Real-life examples.**
+> - A ride-hailing app must find the five closest free drivers among 20 000 in a city for every
+>   booking. Positions have only two coordinates, so a spatial index such as a KD-tree answers
+>   in microseconds instead of comparing the booking with every driver.
+> - An online shop's "visually similar products" button compares a photo's embedding (a few
+>   hundred numbers) with those of millions of catalogue images. At that dimension trees no
+>   longer prune, so the shop uses an approximate index such as HNSW and accepts missing the
+>   odd true neighbour.
+
 The experiment below measures fit and query time of the three exact algorithms in
 scikit-learn for $d = 2$ and $d = 64$ (timings will vary from machine to machine, but the
 pattern is robust).
@@ -502,6 +533,7 @@ pattern is robust).
 n_train, n_query = 20_000, 2_000          # underscores in numbers are only for readability
 rows = []
 for d in [2, 8, 64]:
+    # e.g. d = 2: map positions of drivers; d = 64: embeddings of product photos (here just random numbers)
     X_tr = rng.normal(size=(n_train, d)); y_tr = rng.integers(0, 2, n_train)     # ; separates two statements
     X_q = rng.normal(size=(n_query, d))
     # algorithm= picks how neighbours are searched: "brute" compares with every training point,
@@ -556,6 +588,12 @@ has volume $`V_d = \pi^{d/2} (1/2)^d / \Gamma(d/2 + 1)`$, a vanishing fraction o
 uniformly distributed points are almost surely in the corners, far from the centre and far
 from each other.
 
+> **Real-life example.** Around 1950 the US Air Force measured the bodies of 4 063 pilots.
+> Daniels (1952) took ten dimensions relevant to cockpit design and called a pilot average on
+> one of them if he fell within the middle 30 % of its range: not a single pilot was average on
+> all ten. In ten dimensions almost everyone is extreme somewhere — the central box is nearly
+> empty, and the data live near the faces and corners.
+
 ```python
 dims = np.array([1, 2, 3, 5, 10, 20, 50, 100])
 eps = 0.05
@@ -596,9 +634,16 @@ so its mean grows like $d$ while its standard deviation grows only like $\sqrt{d
 *relative* spread of distances shrinks like $1/\sqrt{d}$, all points become almost
 equidistant from the query, and the "nearest" neighbour is nearest by a whisker.
 
+> **Real-life example.** A cancer-research lab describes each tumour sample by the activity of
+> some 20 000 genes, of which perhaps a few dozen distinguish the tumour types. Measured on all
+> of them, the "most similar" archived tumour can be barely closer than a randomly chosen one,
+> so copying its diagnosis is little better than guessing until the genes are filtered or
+> compressed.
+
 ```python
 dims = [1, 2, 3, 5, 10, 20, 50, 100, 200, 500, 1000]
 contrast, cv_dist = [], []
+# e.g. P = 1000 archived tumour samples with d measurements each (scaled to [0, 1]), q = a new sample
 for d in dims:
     P = rng.uniform(size=(1000, d))                       # 1000 random points in the unit cube
     q = rng.uniform(size=(1, d))                          # one random query point
@@ -646,6 +691,12 @@ supposed to avoid. Turning the statement around: to keep neighbourhoods as local
 are with $n = 100$ points in one dimension, you need $100^d$ points in $d$ dimensions.
 Data requirements grow *exponentially* with the dimension.
 
+> **Real-life example.** A car insurer wants to price a new policy from the 1 % of past customers
+> most similar to the applicant on ten rating factors (age, car value, annual mileage, …). If the
+> factors were spread evenly, that neighbourhood would span 63 % of the range of every factor:
+> with ages from 18 to 80, the "similar" drivers could differ in age by almost 40 years, so the
+> price would hardly be tailored to the applicant at all.
+
 ```python
 d_range = np.arange(1, 21)                        # dimensions 1, 2, ..., 20
 fig, ax = plt.subplots()
@@ -670,9 +721,16 @@ harmful, because they add noise to every distance. We demonstrate by appending p
 features to the two-moons data. Logistic regression, which only has to learn that the
 noise features carry zero weight, degrades gracefully; $k$<span></span>NN degrades fast.
 
+> **Real-life example.** A school predicts which pupils will need extra maths support from their
+> last five test scores, by looking at the most similar pupils of earlier years. Adding 50
+> columns from the school database that have nothing to do with maths — locker number, day of
+> birth, bus route — makes every distance mostly noise, and the "most similar" pupils are then
+> chosen largely by chance.
+
 ```python
 from sklearn.linear_model import LogisticRegression
 
+# e.g. X_base = two informative test scores per pupil; the noise columns = locker number, day of birth, ...
 X_base, y_base = make_moons(n_samples=600, noise=0.25, random_state=RANDOM_STATE)
 n_noise = [0, 2, 5, 10, 30, 100, 300]            # numbers of pure-noise features to append
 acc_knn, acc_lr = [], []
@@ -753,6 +811,12 @@ probabilities underflows, so everything is done in log space:
 Which one-dimensional distribution to use depends on the type of the feature, and gives
 the method its variants: **Gaussian** NB for continuous features, **multinomial** NB for
 counts, **Bernoulli** NB for binary indicators (and `CategoricalNB` for nominal features).
+
+> **Real-life example.** A bank screens card payments for fraud using the amount, the hour, the
+> merchant category and the country. Naive Bayes learns, separately for fraudulent and for
+> genuine payments, how common each amount band, hour, category and country is. To score a new
+> payment it multiplies, for each class, the four matching frequencies by that class's share of
+> all payments (a tiny share for fraud) and compares the two products.
 
 ### 4.2 Gaussian naive Bayes, derived and implemented
 
@@ -853,6 +917,7 @@ would turn into a diagonal version of linear discriminant analysis (notebook 14)
 from sklearn.datasets import make_blobs          # Gaussian clusters ("blobs") around given centres
 
 # three blobs with different spreads: cluster_std gives one standard deviation per blob
+# e.g. size and colour scores of three apple varieties on a sorting line, one far more variable than the others
 X_blob, y_blob = make_blobs(n_samples=600, centers=[[-2, 0], [2, 1], [0, 4]], cluster_std=[0.6, 1.4, 0.9],
                             random_state=RANDOM_STATE)
 models = {"Gaussian naive Bayes": GaussianNB(),
@@ -982,6 +1047,12 @@ closed-form estimate), logistic regression sets $\mathbf{w}$ by minimising the
 cross-entropy of the *conditional* model (a discriminative, iterative estimate). We verify
 the identity numerically.
 
+> **Real-life example.** In a naive Bayes spam filter, every occurrence of "winner" might add
+> 2.1 to the log-odds of spam and every occurrence of "agenda" subtract 1.7. An email's score is
+> the sum over its words plus the log prior odds, and it goes to the spam folder if the score is
+> above zero: a points-based scorecard, the same kind of rule as a credit score, with the points
+> set from word counts instead of by logistic regression.
+
 ```python
 w_nb = mnb.feature_log_prob_[1] - mnb.feature_log_prob_[0]     # the weights w_j = log(θ_1j / θ_0j)
 b_nb = mnb.class_log_prior_[1] - mnb.class_log_prior_[0]       # the intercept b = log(π_1 / π_0)
@@ -1006,6 +1077,12 @@ feature sets under 0–1 loss. What the violated assumption *does* destroy is
 **calibration**: correlated features count as independent evidence, so the posterior is
 pushed towards 0 or 1 far too confidently. The cleanest demonstration is to *duplicate
 every feature*: the accuracy does not change at all, while every log-odds doubles.
+
+> **Real-life example.** A machine-health model reads three vibration sensors bolted to the same
+> gearbox. When the gears wear, all three readings rise together: one piece of evidence,
+> measured three times. Naive Bayes counts it three times, so a reading that honestly means "90 %
+> chance of wear" is reported as 99.9 % (with equal prior chances), and a maintenance plan that
+> weighs such probabilities against repair costs is badly misled.
 
 ```python
 from sklearn.datasets import load_breast_cancer          # 569 biopsies, 30 features; target 0 = malignant, 1 = benign
@@ -1082,6 +1159,7 @@ from sklearn.datasets import load_digits                 # 1797 handwritten digi
 # learning_curve fits a model on growing subsets of each training fold and scores it on the validation fold
 from sklearn.model_selection import learning_curve
 
+# e.g. 3000 patients with 50 standardised lab values each; y_syn = 1 if the patient has the disease
 d_syn = 50
 y_syn = rng.integers(0, 2, 3000)
 shift = rng.normal(0, 0.35, d_syn)                       # per-feature difference between the class means
@@ -1141,6 +1219,11 @@ very smallest sizes even on the synthetic data.
 > This trade-off reappears in notebook 13 (Gaussian mixtures), and again in the generative
 > models of a dedicated deep-learning course.
 
+> **Real-life example.** An agronomist who wants to predict potato blight from a dozen weather
+> and soil readings but has only 40 labelled fields is in the naive Bayes regime: its few,
+> separately estimated statistics settle quickly. A seed company with records from 200 000
+> fields is in the logistic-regression regime, where the model with fewer assumptions pulls ahead.
+
 ## 6. Neighbours as density estimators: Parzen windows and anomaly scores
 
 There is a second way to read $k$<span></span>NN. The Bayes classifier of section 4 needs the
@@ -1161,10 +1244,17 @@ Plugging $k$<span></span>NN density estimates of each class into Bayes' theorem 
 classification rule — the two halves of this notebook are the same idea. In one dimension
 we can watch the bandwidth trade-off directly.
 
+> **Real-life example.** A food-delivery service estimates how its orders are spread over the
+> day from last month's order times, to plan courier shifts. The density has a sharp lunch peak
+> and a broader dinner peak: with a tiny bandwidth every busy minute becomes its own spike; with
+> a very wide one the two peaks merge into a single hump and the quiet afternoon, when fewer
+> couriers are needed, disappears.
+
 ```python
 from sklearn.neighbors import KernelDensity      # kernel density estimation
 
 # a bimodal ground truth: 60 % N(-2, 0.5²) + 40 % N(1.5, 1²)
+# e.g. order times of a food-delivery service (rescaled): a sharp lunch peak and a broader dinner peak
 n_kde = 300
 component = rng.random(n_kde) < 0.6              # True (first component) with probability 0.6
 # np.where(cond, a, b) takes a where cond is True and b elsewhere: one draw from the chosen component per point
@@ -1193,9 +1283,15 @@ neighbour is far away sits in a low-density region. The distance to the $k$-th n
 (or the mean distance to the $k$ nearest) is a perfectly serviceable anomaly score, and the
 starting point for the local outlier factor of notebook 13.
 
+> **Real-life example.** A hosting company records the CPU load and network traffic of each
+> server every minute. Normal minutes form two dense clouds, quiet nights and busy days; a minute
+> whose fifth-nearest past minute is far away (full CPU load with almost no traffic, say) is
+> flagged for an engineer, without anyone having had to define what a fault looks like.
+
 ```python
 from sklearn.neighbors import NearestNeighbors   # neighbour search only, without any prediction
 
+# e.g. X_in = per-minute CPU load and network traffic of a server (quiet nights, busy days), X_out = faults
 # X_in, _ = ...: keep the points and discard the blob labels
 X_in, _ = make_blobs(n_samples=400, centers=[[0, 0], [5, 4]], cluster_std=[0.8, 1.1], random_state=RANDOM_STATE)
 X_out = rng.uniform(-4, 10, size=(12, 2))                     # a dozen scattered anomalies
@@ -1326,6 +1422,8 @@ along the diagonal, class 1 along the anti-diagonal.
 # QDA: one Gaussian with its own full covariance matrix per class, so it can use correlations
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
+# e.g. t_x = outdoor temperature and the second feature = power use, both as deviations from the season's mean;
+# power rises with heat in summer (class 0, air-conditioning) and with cold in winter (class 1, heating)
 n_x = 600
 y_x = rng.integers(0, 2, n_x)
 t_x = rng.normal(0, 1.2, n_x)
@@ -1392,7 +1490,7 @@ cost_models = {"15-NN": KNeighborsClassifier(15), "Gaussian NB": GaussianNB(),
 fit_times = {k: [] for k in cost_models}                # dict comprehension: one empty list per model name
 pred_times = {k: [] for k in cost_models}
 for n_c in sizes_cost:
-    X_c = rng.normal(size=(n_c, d_cost))
+    X_c = rng.normal(size=(n_c, d_cost))                 # e.g. 20 standardised features of past loan applicants
     y_c = (X_c[:, 0] + 0.5 * X_c[:, 1] > 0).astype(int)    # a simple linear labelling rule
     for name, model in cost_models.items():
         reps_fit, reps_pred = [], []
@@ -2230,6 +2328,7 @@ use smarter index structures but the same trade-off between recall and speed.
 - Bentley, J. L. (1975). Multidimensional binary search trees used for associative searching. *Communications of the ACM*, 18(9), 509–517. — The KD-tree.
 - Malkov, Y. A., & Yashunin, D. A. (2020). Efficient and robust approximate nearest neighbor search using hierarchical navigable small world graphs. *IEEE Transactions on Pattern Analysis and Machine Intelligence*, 42(4), 824–836. — HNSW, the index behind most vector databases.
 - Bellman, R. E. (1961). *Adaptive Control Processes: A Guided Tour*. Princeton University Press. — Origin of the phrase "curse of dimensionality".
+- Daniels, G. S. (1952). The "average man"? Technical Note WCRD 53-7, Wright Air Development Center, US Air Force. — Ten body dimensions of 4 063 pilots: not one pilot was average on all ten (section 3.1).
 - Beyer, K., Goldstein, J., Ramakrishnan, R., & Shaft, U. (1999). When is "nearest neighbor" meaningful? *Proceedings of ICDT 1999*, 217–235. — Distance concentration, section 3.2.
 - Zhang, H. (2004). The optimality of naive Bayes. *Proceedings of FLAIRS 2004*. — Why dependencies between features often do not hurt classification accuracy.
 - Domingos, P., & Pazzani, M. (1997). On the optimality of the simple Bayesian classifier under zero-one loss. *Machine Learning*, 29, 103–130. — The earlier, more formal version of the same question.

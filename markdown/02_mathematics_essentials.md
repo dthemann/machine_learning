@@ -112,6 +112,11 @@ is the **cosine similarity** — $1$ for parallel vectors, $0$ for orthogonal
 is exactly what one wants when comparing documents of different lengths (notebook 15) or embeddings. Every linear model computes $\mathbf{w}^\top\mathbf{x}$: a
 prediction is a dot product between the weights and the features.
 
+> **Real-life example.** A supermarket receipt is a dot product: the quantities bought (2 loaves,
+> 1 kg of apples, 6 eggs) times the unit prices (2.50, 3.00 and 0.30 euros), summed, give
+> 2 × 2.50 + 1 × 3.00 + 6 × 0.30 = 9.80 euros. A linear model's prediction is the same sum, with the
+> feature values in the role of the quantities and the weights in the role of the prices.
+
 ```python
 x = np.array([3.0, 4.0])
 y = np.array([4.0, -3.0])
@@ -241,6 +246,16 @@ some combination of rotation, scaling and shear, and some maps *lose* a dimensio
   matrices — which is why "just multiply the matrices" can be the most expensive step of an
   algorithm.
 
+> **Real-life examples.**
+> - A bakery's recipe matrix has one row per ingredient (flour, butter, sugar, in kg) and one column
+>   per product (bread, rolls, cakes, per batch); multiplied by a production plan (batches of each)
+>   it gives the ingredients to order. If the cake recipe were exactly twice the rolls recipe, the
+>   matrix would have rank 2 and determinant 0: one batch of cakes would use the same as two batches
+>   of rolls, so no inverse could recover the plan from the ingredient bill.
+> - In a photo editor, rotating a picture by 30° and then stretching it horizontally gives a
+>   different result from stretching it first and rotating afterwards: the two matrix products
+>   differ.
+
 ```python
 theta = np.deg2rad(30)                      # NumPy's trigonometric functions expect radians
 maps = {
@@ -341,9 +356,16 @@ between feature columns ($1^2 + 2^2 + 3^2 = 14$, $1 \cdot 2 + 2 \cdot 0 + 3 \cdo
 $2^2 + 0^2 + 1^2 = 5$). This *Gram matrix* returns in the normal equations (section 1.3) and in
 the covariance matrix (section 1.4).
 
+> **Real-life example.** A parcel service predicts how many minutes a courier spends at a stop. Each
+> row of the design matrix is one stop, described by (parcels delivered, floors climbed), and the
+> weights (2, 1) mean 2 minutes per parcel and 1 per floor. With a bias of 0.5 minutes for parking,
+> the three stops above take 4.5, 4.5 and 7.5 minutes, and the new stop in the code below (4 parcels
+> to the 4th floor) takes 12.5 minutes.
+
 ```python
 from sklearn.linear_model import LinearRegression    # ordinary least squares
 
+# e.g. 3 courier stops x (parcels delivered, floors climbed); w_toy: minutes per parcel and per floor
 X_toy = np.array([[1.0, 2.0], [2.0, 0.0], [3.0, 1.0]])   # design matrix: 3 samples (rows) x 2 features (columns)
 w_toy = np.array([2.0, 1.0])
 print("X w =", X_toy @ w_toy, "  (one dot product per row: all predictions at once)")
@@ -436,6 +458,13 @@ model *is* projecting the target vector $\mathbf{y}$ onto the column space of th
 matrix $\mathbf{X}$. The projection matrix $\mathbf{P}$ is symmetric and idempotent
 ($\mathbf{P}^2 = \mathbf{P}$ — projecting twice changes nothing).
 
+> **Real-life example.** An ice-cream kiosk records its sales on six days together with the
+> temperature and the hours of sunshine. Whatever weights it picks, the model "sales = weight ×
+> temperature + weight × sunshine" can only produce six-number predictions that lie in one plane,
+> the column space; the six actual sales lie off it. Least squares picks the point of the plane
+> closest to them, and the residual — what the weather cannot explain, such as a school trip passing
+> by on one day — is perpendicular to both columns.
+
 ```python
 a = np.array([4.0, 1.0])
 b = np.array([2.0, 3.0])
@@ -443,6 +472,7 @@ p = (a @ b) / (a @ a) * a                 # projection of b onto the line throug
 # np.isclose(x, 0) is the single-number version of allclose: True if x is 0 up to round-off
 print("projection of b onto the line of a:", p.round(3), "| residual orthogonal to a:", np.isclose(a @ (b - p), 0))
 
+# e.g. 6 days x (temperature, hours of sunshine) and, in b6, the kiosk's sales, all as deviations from average
 A = rng.normal(size=(6, 2))                 # column space = a plane in R^6
 b6 = rng.normal(size=6)
 # np.linalg.solve(M, B) returns X with M X = B; with B = A.T (2, 6) the result is (A^T A)^{-1} A^T, shape (2, 6)
@@ -494,7 +524,7 @@ least squares via lstsq gives the same w_hat: True
 ```python
 from sklearn.dummy import DummyRegressor     # a baseline model that ignores the features
 
-y_three = np.array([1.0, 2.0, 6.0])
+y_three = np.array([1.0, 2.0, 6.0])                       # e.g. units sold on three days
 ones = np.ones(3)                                         # the vector (1, 1, 1)
 on_ones = (ones @ y_three) / (ones @ ones) * ones         # the projection formula with a = (1, 1, 1)
 print("projection:", on_ones, "| residual:", y_three - on_ones, "| residual sum:", (y_three - on_ones).sum())
@@ -521,6 +551,7 @@ DummyRegressor predicts: [3. 3. 3.]
 
 ```python
 rng_demo = np.random.default_rng(0)   # its own seeded generator: reproducible, and the notebook's rng is left untouched
+# e.g. 100 used cars x 3 standardised features (engine power, age, optional extras); y_sim: their prices
 X_sim = rng_demo.normal(size=(100, 3))                                          # 100 samples, 3 features
 y_sim = X_sim @ np.array([1.5, -2.0, 0.5]) + 3.0 + rng_demo.normal(size=100)   # linear signal plus noise
 residuals_sim = y_sim - LinearRegression().fit(X_sim, y_sim).predict(X_sim)     # LinearRegression: imported in 1.2
@@ -575,6 +606,12 @@ their product, $3 \cdot 1$. Read as a covariance matrix — two features with va
 off-diagonal 1 saying that they tend to rise together (their *covariance*, section 3.3) — $\mathbf{A}$ says
 that the data spread most along the diagonal, with variance 3, and least across it, with variance 1.
 
+> **Real-life example.** A clothing maker measures the height and weight of 500 customers. The two
+> rise together, so the cloud of points is an elongated ellipse: the top eigenvector of its
+> covariance matrix points in the direction "taller and heavier" — overall size — and carries most
+> of the variance, while the second, perpendicular one is "heavier for one's height" — build. The
+> second code cell below draws such a cloud.
+
 ```python
 A_sym = np.array([[2.0, 1.0], [1.0, 2.0]])
 eigenvalues_sym, eigenvectors_sym = np.linalg.eigh(A_sym)   # ascending eigenvalues, unit eigenvectors as columns
@@ -595,6 +632,7 @@ trace: 4.0 = 1 + 3 | det: 3.0 = 1 x 3
 ```
 
 ```python
+# e.g. height and weight of 500 customers, centred (in arbitrary units): the two rise together
 Sigma_true = np.array([[3.0, 1.2], [1.2, 1.0]])
 # 500 draws from a 2-D Gaussian with mean (0, 0) and covariance Sigma_true -> shape (500, 2)
 X = rng.multivariate_normal(mean=[0, 0], cov=Sigma_true, size=500)
@@ -869,6 +907,13 @@ $\ge 0$ (resp. $`> 0`$). Three reasons to care:
    (collinear features); adding $\lambda\mathbf{I}$ shifts every eigenvalue up by $\lambda$,
    which is why ridge regression (notebook 6) always has a unique solution.
 
+> **Real-life example.** An investor spreads money over several shares. The variance of the
+> portfolio's return is the quadratic form above, with the amounts invested as the vector and the
+> covariance matrix of the share returns as the matrix, so it can never be negative, whatever the
+> amounts (selling short included). A "covariance matrix" pieced together pair by pair from price
+> histories of different lengths can fail this test: with a negative eigenvalue it would promise a
+> portfolio of negative risk, a sign that it is not a valid covariance matrix.
+
 ```python
 X_c = X - X.mean(axis=0)                  # centre the data: subtract each column's mean, (500, 2) - (2,)
 Sigma = X_c.T @ X_c / (len(X) - 1)        # the covariance formula by hand (the same as np.cov above)
@@ -918,6 +963,12 @@ least-squares bowl is flat in that direction: moving the weights along $\mathbf{
 prediction, since twice the first feature column minus the second is zero. Adding
 $`0.5\,\mathbf{I}`$ curves it up: $`\mathbf{v}^\top(\mathbf{G} + 0.5\,\mathbf{I})\mathbf{v} = 0 + 0.5\,\|\mathbf{v}\|_2^2 = 0.5 \cdot 5 = 2.5 > 0`$.
 
+> **Real-life example.** A weather data set that stores the temperature both in °C and in °F has
+> exactly this problem: with the intercept's column of ones, the °F column is 1.8 times the °C
+> column plus 32, a combination of the other columns. The weights can then move along a flat
+> direction — more weight on °C, less on °F and a shifted intercept — without changing a single
+> prediction, and only a penalty such as ridge's picks one sensible split.
+
 ```python
 v_flat = np.array([2.0, -1.0])
 # singular_gram (G) was defined in the PSD code cell above; v @ M @ v computes the quadratic form v^T M v
@@ -945,6 +996,8 @@ v^T (G + 0.5 I) v = 2.5
 
 ```python
 rng_demo = np.random.default_rng(0)   # its own seeded generator: reproducible, and the notebook's rng is left untouched
+# e.g. a day's temperature read at two neighbouring weather stations (almost the same number);
+# y_twins: a café's cold-drink sales on that day
 base_feature = rng_demo.normal(size=100)
 # two nearly identical features: the second is the first plus a tiny perturbation
 X_twins = np.column_stack([base_feature, base_feature + 0.001 * rng_demo.normal(size=100)])
@@ -1007,6 +1060,15 @@ pieces. For a composition $f(\mathbf{x}) = h(\mathbf{g}(\mathbf{x}))$,
 i.e. multiply the Jacobians of the layers, innermost last. A neural network is a long
 composition of simple layers, and *backpropagation* in neural networks is nothing but this
 formula applied layer by layer, reusing intermediate results.
+
+> **Real-life examples.**
+> - *Gradient.* An online shop's weekly profit depends on the prices of its two best-selling
+>   products. The gradient holds the two sensitivities — euros of profit gained per cent of price
+>   increase on each — and points to the mix of small price changes that raises profit fastest; at
+>   the best pair of prices both are zero.
+> - *Chain rule.* Every degree colder outside raises a house's gas use by about 3 kWh a day, and
+>   each kWh costs 0.10 euros, so the daily heating bill rises by 3 × 0.10 = 0.30 euros per degree
+>   colder: the sensitivities of the stages multiply.
 
 **Numerical gradient checking.** Any hand-derived gradient should be checked against a
 finite-difference approximation. The central difference
@@ -1150,6 +1212,8 @@ The backward pass reuses $p$ from the forward pass and computes $\partial L/\par
 that reuse is why backpropagation costs only a small multiple of one forward pass, however many weights there are.
 
 ```python
+# e.g. a machine with 1 overheating alarm this week and 2 maintenance visits this year (x) that broke
+# down (y = 1); the weights add 0.5 per alarm and subtract 0.25 per maintenance visit
 x_one, y_one = np.array([1.0, 2.0]), 1          # one example: two feature values and its label
 params_one = np.array([0.5, -0.25, 0.0])        # the parameters (w1, w2, b)
 
@@ -1213,6 +1277,11 @@ Two matrix-calculus rules do the rest: $`\nabla_\mathbf{w}(\mathbf{w}^\top\mathb
 \mathbf{H} = \nabla^2_\mathbf{w}\mathcal{L} = 2\,\mathbf{X}^\top\mathbf{X} \succeq 0 .
 ```
 
+> **Real-life example.** A rent model that under-predicts large flats has negative residuals
+> (prediction minus rent) exactly where the standardised floor area is large and positive. The
+> floor-area entry of the gradient, the sum of "residual × floor area", is then clearly negative, so
+> a step against the gradient raises the floor-area weight — just what the errors call for.
+
 Setting the gradient to zero gives the normal equations of section 1.3; the PSD Hessian
 says the loss is convex, so that solution is the global minimum. (Alternatively, apply the
 chain rule with $\mathbf{g}(\mathbf{w}) = \mathbf{X}\mathbf{w} - \mathbf{y}$, whose Jacobian
@@ -1221,6 +1290,7 @@ $\nabla\mathcal{L} = \mathbf{X}^\top \cdot 2\mathbf{r}$.) Let us check it numeri
 
 ```python
 n, d = 50, 4
+# e.g. 50 flats described by 4 standardised features and, in y_ls, their monthly rents
 X_ls = rng.normal(size=(n, d))                                     # (50, 4) random design matrix
 y_ls = X_ls @ np.array([1.0, -2.0, 0.5, 3.0]) + rng.normal(0, 0.5, n)   # known true weights plus noise (std 0.5)
 
@@ -1473,6 +1543,12 @@ one is right *on average*, $(0 - 4)/2 = -2$. At the optimum $w^\star = 1.4$ they
 on average but not individually. So with a fixed learning rate SGD keeps jumping around the optimum, and the
 learning rate must shrink over time for it to settle (Robbins & Monro, 1951).
 
+> **Real-life example.** A video-streaming service logs millions of plays a day and predicts whether
+> a user will watch a recommended film to the end. A full pass over months of plays for every single
+> step would be far too slow, so it steps on mini-batches of a few hundred randomly drawn plays —
+> each a noisy but unbiased estimate of the full gradient — and can keep learning as new plays
+> arrive.
+
 > **In machine learning.**
 > - **Linear models on large or streaming data.** `SGDRegressor` and `SGDClassifier` fit linear models by SGD and
 >   shrink the learning rate over time by default; with `partial_fit` they learn from data that arrive in chunks or
@@ -1533,6 +1609,12 @@ for Gaussian mixtures fitted by EM (notebook 13, §5.2) and for deep learning. T
 several starting points, keeping the best result, and smarter initialisation such as $k$-means++; in deep
 learning, careful initialisation and momentum (exercise 6), which also helps with the zigzagging above, are
 the usual ones.
+
+> **Real-life example.** A retail chain chooses sites for 4 warehouses by running $k$-means on the
+> map positions of its 500 shops. From unlucky starting points the algorithm can settle with two
+> warehouses in the same city and a single one serving two distant cities: a local minimum, where
+> moving any one warehouse a little makes things worse, yet the total squared distance is far above
+> that of the best layout.
 
 ```python
 def himmelblau(w):
@@ -1652,6 +1734,7 @@ from sklearn.datasets import make_blobs     # simulated data: Gaussian blobs of 
 
 # the data of notebook 13, section 2.3: 500 points in 4 blobs, each with standard deviation cluster_std = 1.3
 # (make_blobs also returns the true labels, which are not needed here, hence _)
+# e.g. map positions of 500 shops around 4 cities (the warehouse example above)
 X_blobs, _ = make_blobs(n_samples=500, centers=4, cluster_std=1.3, random_state=RANDOM_STATE)
 # init="random": the starting centres are 4 random data points; n_init=1: a single run without restarts;
 # inertia_ = the k-means objective (sum of squared distances to the nearest centre) at the end of the run
@@ -1690,6 +1773,12 @@ gradient certifies optimality. Least squares, ridge, lasso, logistic regression 
 vector machines all have convex objectives (Boyd & Vandenberghe, 2004, is the reference);
 $k$-means, matrix factorisation and neural networks do not — which is why for those we
 worry about initialisation, restarts and the choice of optimiser.
+
+> **Real-life example.** A bank must be able to reproduce and explain its credit-scoring model to
+> the regulator. Logistic regression is convex, so refitting it on the same loan applications gives
+> the same lowest loss on any machine and with any solver — and, with the usual penalty, the same
+> weights — whereas a neural network retrained from a different random start may end in another
+> valley and score some applicants differently.
 
 ```python
 def numerical_hessian(grad, w, eps=1e-5):
@@ -1759,6 +1848,7 @@ $`f'' = 2 > 0`$ everywhere, while $g''(x) = 12x^2 - 6$ is negative for $`|x| < 1
 from sklearn import linear_model                  # scikit-learn's module of linear models
 from sklearn.datasets import make_classification  # simulated data for a two-class problem
 
+# e.g. 300 past loans x 4 standardised applicant features; y_clf = 1 if the loan was not repaid
 X_clf, y_clf = make_classification(n_samples=300, n_features=4, random_state=RANDOM_STATE)
 for solver_name in ["lbfgs", "newton-cg", "newton-cholesky", "sag", "saga"]:
     # one convex objective (log loss + l2 penalty with C=1) minimised by five different algorithms;
@@ -1809,6 +1899,12 @@ variables: $`\operatorname{Var}[X + Y] = \operatorname{Var}[X] + \operatorname{V
 $X \perp Y$. The standard deviation $`\sqrt{\operatorname{Var}[X]}`$ is in the units of $X$.
 In practice we estimate both from a sample by the sample mean and sample variance, and the
 estimates get better with more data — that is the law of large numbers (section 3.5).
+
+> **Real-life example.** An insurer can cover one villa worth 1 million euros or two independent
+> houses worth 500 000 euros each, all with the same fire risk. The expected claims are the same
+> (linearity), but the villa's claim is twice a house's claim, so its variance is 4 times a house's,
+> while the two independent houses add up to only 2 times: spreading the same cover over independent
+> risks halves the variance — the idea behind diversification.
 
 ```python
 faces = np.arange(1, 7)                   # the outcomes 1..6
@@ -1862,6 +1958,7 @@ exact value has probability 0.
 
 ```python
 # stats.uniform(loc, scale) is the uniform distribution on [loc, loc + scale], here [0, 0.5]
+# e.g. the wait at a stop served every 30 minutes, for someone who arrives at a random moment
 waiting_time = stats.uniform(loc=0, scale=0.5)
 print("density p(0.25) =", waiting_time.pdf(0.25), "  <- a density, not a probability: it may exceed 1")
 # integrate.quad(f, a, b) integrates f numerically from a to b and returns (value, error estimate); [0] keeps the value
@@ -1912,6 +2009,12 @@ Poisson appears in count regression (`PoissonRegressor`, notebook 6, §8). `scip
 implements all of them with the same interface (`pmf`/`pdf`, `cdf`, `ppf`, `mean`, `var`,
 `rvs`).
 
+> **Real-life example.** A call centre receives on average 4 calls a minute in the afternoon,
+> independently of each other. The number of calls in a given minute is then Poisson with mean 4
+> (8 or more arrive in about 5 % of minutes), and the gaps between calls are exponential with a mean
+> of 15 seconds. These two distributions are the input of the queueing formulas used to decide how
+> many agents to staff.
+
 ```python
 fig, axes = plt.subplots(2, 2, figsize=(12, 7))   # a 2 x 2 grid of panels; axes[row, col] picks one
 ks = np.arange(0, 21)
@@ -1943,6 +2046,7 @@ for ax in axes.ravel():                   # .ravel() flattens the 2 x 2 grid int
 plt.tight_layout()
 plt.show()
 
+# e.g. the number of calls in each of 100 000 afternoon minutes at the call centre above
 samples = rng.poisson(4, size=100_000)    # 100 000 random draws from Poisson(4)
 # .mean() / .var() of a frozen distribution are the exact theoretical values
 print(f"Poisson(4): theoretical mean {stats.poisson(4).mean():.2f} / var {stats.poisson(4).var():.2f}; "
@@ -2421,6 +2525,7 @@ n_reps = 5_000
 fig, axes = plt.subplots(1, 4, figsize=(17, 3.6))
 for ax, n in zip(axes, [1, 2, 10, 50]):
     # a (5000, n) array of draws; .mean(axis=1) averages each row -> 5000 sample means of size n
+    # e.g. call durations in units of the average call: most are short, a few very long
     means = rng.exponential(scale=1.0, size=(n_reps, n)).mean(axis=1)     # exponential(1): mean 1, variance 1, very skewed
     # density=True scales the bars so their total area is 1, comparable with the density curve
     ax.hist(means, bins=50, density=True, color=PALETTE[0], alpha=0.7, label="sample means")
@@ -2517,8 +2622,15 @@ $\frac{n-1}{n}\sigma^2$, because $\bar{x}$ is closer to the data than $\mu$ is �
 why `np.var(x, ddof=1)` divides by $n - 1$. Yet the biased version has the *smaller* mean
 squared error: unbiasedness is not the same as accuracy.
 
+> **Real-life example.** A factory estimates the share of faulty screws in a day's production from a
+> sample. Inspecting only the first hour, when the machines are freshly calibrated, gives a *biased*
+> estimate — too low, however many screws are checked. Inspecting 20 screws drawn at random over the
+> whole day is unbiased but has a high *variance*: the estimate jumps from day to day. A large
+> random sample keeps both small.
+
 ```python
 n, n_reps, sigma2 = 5, 20_000, 1.0
+# e.g. 20 000 batches of tablets, 5 weighed per batch, as deviations from the nominal dose
 samples = rng.normal(0, np.sqrt(sigma2), size=(n_reps, n))   # 20 000 samples (rows) of size 5 from N(0, 1)
 var_biased = samples.var(axis=1, ddof=0)            # divide by n
 var_unbiased = samples.var(axis=1, ddof=1)          # divide by n - 1
@@ -2579,6 +2691,8 @@ from sklearn import linear_model   # scikit-learn's linear models; Ridge(alpha) 
 rng_demo = np.random.default_rng(0)   # its own seeded generator: reproducible, and the notebook's rng is left untouched
 w_true_2d = np.array([1.5, 1.0])
 ols_fits, ridge_fits = [], []
+# e.g. 20 weeks of a shop's radio and TV advertising spend (correlated: planned together) and its
+# sales; 500 such data sets
 for _ in range(500):                                   # 500 independent training sets of 20 rows
     x_first = rng_demo.normal(size=20)                 # feature 1; feature 2 below is feature 1 plus a little noise
     X_sim = np.column_stack([x_first, x_first + 0.5 * rng_demo.normal(size=20)])   # column_stack: arrays as columns
@@ -2641,6 +2755,7 @@ and *asymptotically efficient* (no consistent estimator has lower variance for l
 which is why it is the default.
 
 ```python
+# e.g. whether each of 40 visitors clicked an advert (True = clicked)
 flips = rng.random(40) < 0.3                       # 40 Bernoulli(0.3) draws
 k, n = flips.sum(), len(flips)                     # number of ones (True counts as 1) and number of flips
 p_grid = np.linspace(0.01, 0.99, 400)             # candidate values of p (0 and 1 excluded: log(0) is -inf)
@@ -2656,7 +2771,7 @@ ax.set_title("Bernoulli log-likelihood for the observed flips")
 ax.legend()
 plt.show()
 
-x_obs = rng.normal(loc=2.0, scale=1.5, size=200)
+x_obs = rng.normal(loc=2.0, scale=1.5, size=200)     # e.g. weight lost in kg by 200 people on a diet
 # .logpdf(x) is the log-density of each observation; optimising log(sigma) keeps sigma = exp(.) positive
 neg_loglik = lambda theta: -np.sum(stats.norm(theta[0], np.exp(theta[1])).logpdf(x_obs))   # theta = (mu, log sigma)
 # optimize.minimize(f, x0) searches numerically for the minimum of f starting from x0 (here with BFGS, the default
@@ -2758,6 +2873,12 @@ $`\sum_i (y_i - \mathbf{w}^\top\mathbf{x}_i)^2 = \|\mathbf{X}\mathbf{w} - \mathb
 **Least squares is the MLE under Gaussian noise.** (Laplacian noise would give least
 absolute deviations; heavy-tailed noise motivates robust losses — notebook 6.)
 
+> **Real-life example.** A weather service's errors in forecasting tomorrow's temperature come from
+> many small influences and are roughly bell-shaped: squared error, the Gaussian choice, suits them.
+> A taxi company's errors in predicting trip durations are mostly small, but now and then a trip
+> stuck in a jam takes an hour longer; squared error would chase those rare huge errors, while the
+> absolute error of heavier-tailed Laplace noise shrugs them off.
+
 **Classification.** Assume $`y_i \in \{0, 1\}`$ with $`P(y_i = 1 \mid \mathbf{x}_i) = p_i = \sigma(\mathbf{w}^\top\mathbf{x}_i)`$, the logistic model (the *sigmoid* $\sigma(z) = 1/(1 + e^{-z})$ turns any score into a probability; example below). The Bernoulli log-likelihood is
 
 ```math
@@ -2788,6 +2909,8 @@ print("least squares:", w_lstsq.round(4))
 # --- classification: minimising the Bernoulli negative log-likelihood == logistic regression ---
 sigmoid = lambda z: 1 / (1 + np.exp(-z))   # squashes any number into (0, 1)
 n_c = 400
+# e.g. 400 visitors of an online shop: (intercept, minutes on the site, price of the viewed item),
+# standardised; y_c = 1 if the visitor bought something
 X_c = np.column_stack([np.ones(n_c), rng.normal(size=(n_c, 2))])          # intercept column + 2 features
 w_true = np.array([-0.5, 2.0, -1.0])
 # each label is 1 with probability sigmoid(w_true . x) (a Bernoulli draw); .astype(float) turns True/False into 1.0/0.0
@@ -2825,6 +2948,12 @@ section 2.1, turns a score $z = \mathbf{w}^\top\mathbf{x}$ of any size into a pr
 the **logit**, or *log-odds*, $z = \ln\frac{p}{1 - p}$: $p = 0.881$ means odds of $0.881/0.119 \approx 7.4$ to 1, and
 $\ln 7.4 \approx 2$. So the logistic model says that the log-odds of $y = 1$ are linear in $\mathbf{x}$ (notebook 7,
 §1.2); for more than two classes the sigmoid becomes the softmax (section 5.3).
+
+> **Real-life example.** Medical studies report risk factors as odds ratios, and logistic regression
+> produces them directly: a weight of 0.69 on "smoker" adds 0.69 to the log-odds of a disease, which
+> multiplies the odds by about 2 (e to the power 0.69), whatever the patient's other
+> characteristics. A patient at odds of 1 to 9 (probability 0.10) moves to 2 to 9 (probability 0.18)
+> as a smoker.
 
 **Example — log loss of three predictions.** A model gives three customers who all churned ($y = 1$) the churn
 probabilities 0.9, 0.6 and 0.1. Their losses are $-\ln 0.9 \approx 0.105$ (confident and right: tiny),
@@ -2935,6 +3064,12 @@ $p(1 - p)$, which is worth one imaginary head and one imaginary tail. The poster
 $p^3 \cdot p(1 - p) = p^4(1 - p)$, which is largest at $`\hat p_{\text{MAP}} = (3 + 1)/(3 + 2) = 0.8`$. After 210 heads in
 300 tosses the same prior hardly matters: MLE $0.7$, MAP $211/302 \approx 0.699$.
 
+> **Real-life example.** A restaurant guide receives the first three reviews of a new restaurant,
+> all of them positive. Maximum likelihood rates it 100 % positive, above a place with 300 reviews
+> of which 95 % are positive. A prior centred on the typical share of positive reviews across all
+> restaurants pulls the newcomer's estimate towards that share and lets its own reviews take over as
+> they accumulate.
+
 ```python
 p_candidates = np.linspace(0.001, 0.999, 999)               # candidate head probabilities, in steps of 0.001
 for heads, tosses in [(3, 3), (210, 300)]:
@@ -2965,6 +3100,7 @@ for heads, tosses in [(3, 3), (210, 300)]:
 from sklearn.linear_model import Lasso    # least squares (divided by 2n) plus the penalty alpha * ||w||_1
 
 rng_demo = np.random.default_rng(0)   # its own seeded generator: reproducible, and the notebook's rng is left untouched
+# e.g. 100 wheat fields x 10 soil measurements, of which only 3 affect the yield (y_sparse)
 X_sparse = rng_demo.normal(size=(100, 10))                      # 100 rows, 10 features
 w_sparse = np.array([3.0, -2.0, 1.5, 0, 0, 0, 0, 0, 0, 0])     # only the first 3 features matter
 y_sparse = X_sparse @ w_sparse + rng_demo.normal(size=100)
@@ -3033,6 +3169,7 @@ true_mean, n_reps = 1.0, 300
 for n in [15, 200]:
     hits = {"analytic": 0, "bootstrap": 0}             # how often each interval contains the true mean
     for _ in range(n_reps):
+        # e.g. emergency-department waiting times in hours: a few very long waits make them skewed
         sample = rng.exponential(scale=true_mean, size=n)          # skewed population, true mean 1
         # a chained comparison low <= x <= high; True adds 1 to the count
         hits["analytic"] += analytic_ci(sample)[0] <= true_mean <= analytic_ci(sample)[1]
@@ -3041,6 +3178,7 @@ for n in [15, 200]:
     print(f"n = {n:3d}: coverage of the nominal 95% interval — analytic {hits['analytic'] / n_reps:.1%}, "
           f"bootstrap percentile {hits['bootstrap'] / n_reps:.1%}")
 
+# e.g. 60 recorded waiting times: an interval for their median needs the bootstrap
 sample = rng.exponential(scale=1.0, size=60)
 print(f"\nmedian of one sample of 60: {np.median(sample):.3f}, bootstrap 95% CI {np.round(bootstrap_ci(sample, statistic=np.median), 3)}"
       "  (no simple formula exists for this one)")
@@ -3239,10 +3377,16 @@ an unrelated target, as a filter method for feature selection does. The simplest
 correction**, tests each of $m$ hypotheses at $\alpha / m$ (here $0.05/100 = 0.0005$), which keeps the chance of even
 one false discovery at most $\alpha$; scikit-learn's `SelectFwe` applies exactly that rule.
 
+> **Real-life example.** Genome-wide association studies test about a million genetic variants, one
+> at a time, for a link with a disease. At the 0.05 level tens of thousands of variants would pass
+> by chance alone, so the field calls a variant significant only if p < 5 × 10⁻⁸ — the Bonferroni
+> threshold 0.05 / 1 000 000.
+
 ```python
 from sklearn.feature_selection import f_regression, SelectFpr, SelectFwe   # one-feature-at-a-time tests and filters
 
 rng_demo = np.random.default_rng(4)   # its own seeded generator: reproducible, and the notebook's rng is left untouched
+# e.g. 100 blood markers measured on 200 patients, and a symptom score unrelated to all of them
 noise_features = rng_demo.normal(size=(200, 100))     # 200 rows, 100 features of pure noise
 noise_target = rng_demo.normal(size=200)              # a target unrelated to every one of them
 # f_regression tests each feature on its own ("no linear relation with the target"): returns (F statistics, p-values)
@@ -3449,6 +3593,7 @@ def kl_divergence(p, q, base=2):
     """Kullback-Leibler divergence KL(p || q) = H(p, q) - H(p), in bits by default."""
     return cross_entropy(p, q, base) - entropy(p, base)
 
+# e.g. p: how customers really split over three payment methods (card, cash, app); q: what a model assumes
 p = np.array([0.5, 0.3, 0.2])
 q = np.array([0.2, 0.5, 0.3])
 print(f"H(p) = {entropy(p):.4f}  H(p, q) = {cross_entropy(p, q):.4f}  KL(p||q) = {kl_divergence(p, q):.4f}  KL(q||p) = {kl_divergence(q, p):.4f} bits")
@@ -3594,6 +3739,12 @@ $`I(X; Y) = D_{\mathrm{KL}}\big(p(x, y)\,\|\,p(x)p(y)\big) = H(Y) - H(Y \mid X)`
 $`H(Y \mid X) = \sum_x p(x) H(Y \mid X = x)`$ is the conditional entropy. It is zero exactly
 when $X$ and $Y$ are independent, and it is the basis of the `mutual_info_*` feature
 selectors in notebook 4.
+
+> **Real-life example.** Electricity demand in a region with both electric heating and air
+> conditioning is high on cold days and on hot days and lowest in mild weather. This U-shape can
+> give a correlation with temperature close to 0, yet the mutual information is clearly positive:
+> the temperature tells the grid operator a lot about the demand to expect, and a correlation screen
+> would wrongly drop it.
 
 **Information gain in decision trees.** Splitting a node whose labels have entropy $H(Y)$
 on feature $X$ leaves children with average entropy $H(Y \mid X)$; the reduction
@@ -3764,6 +3915,7 @@ from sklearn.feature_selection import mutual_info_regression   # estimates I(fea
 rng_demo = np.random.default_rng(0)   # its own seeded generator: reproducible, and the notebook's rng is left untouched
 # uniform(low, high, size): random numbers spread evenly between -2 and 2; 1000 samples of three candidate features
 features_demo = rng_demo.uniform(-2, 2, size=(1000, 3))
+# e.g. temperature, industrial activity and a meter's serial number, with electricity demand as the target:
 # the target depends on feature 0 through a U-shape, on feature 1 linearly, and not at all on feature 2
 target_demo = features_demo[:, 0] ** 2 + features_demo[:, 1] + 0.3 * rng_demo.normal(size=1000)
 # a nearest-neighbour estimate; random_state seeds the tiny noise it adds to break ties between equal values

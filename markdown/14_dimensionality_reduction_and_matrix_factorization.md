@@ -97,6 +97,12 @@ component. The second is the direction of largest spread among those orthogonal 
 first, and so on. Equivalently — and this was Pearson's (1901) original formulation — PCA
 finds the $k$-dimensional flat that is *closest* to the points in the least-squares sense.
 
+> **Real-life example.** A clothing manufacturer measures height, arm length, inside-leg length,
+> chest and waist of 10 000 customers to design its size chart. The five numbers rise and fall
+> together, so the first principal component is overall body size (all five weights positive)
+> and the second contrasts girth with length — stocky versus slender. Two scores per customer
+> instead of five measurements are enough to define sizes such as "M regular" and "M long".
+
 **Setting.** Let $\mathbf{X} \in \mathbb{R}^{n \times d}$ be the data matrix with the
 column means subtracted (centring is part of PCA; without it the first component just
 points at the mean). The sample covariance matrix is
@@ -253,6 +259,12 @@ basis for the usual heuristics:
 - or, best of all when there is a downstream task, treat $k$ as a hyper-parameter and
   choose it by cross-validation (section 2.6).
 
+> **Real-life example.** A psychologist gives 5 000 people a 50-question personality
+> questionnaire (answers on a 1–5 scale). The scree plot of the answers typically falls steeply
+> over the first five or so components and then flattens: the questionnaire was built to measure
+> five broad traits, and the remaining directions are mostly question-specific noise. Keeping
+> five scores per person instead of 50 answers is the decision the elbow supports.
+
 ```python
 pca_full = PCA(random_state=RANDOM_STATE).fit(X_digits)    # no n_components: keep all 64 components
 evr = pca_full.explained_variance_ratio_                  # (64,) share of the total variance per component
@@ -293,6 +305,12 @@ directions carry no information at all.
 transformed features have unit variance and are uncorrelated (identity covariance). This
 is useful before algorithms that assume isotropic inputs (some clustering methods, ICA),
 but it *amplifies* low-variance directions — including noise — so it is not a default.
+
+> **Real-life example.** A neuroscience lab records brain activity with 64 scalp electrodes
+> (EEG). Neighbouring electrodes pick up largely the same signals, so the channels are strongly
+> correlated. Before independent component analysis (ICA) separates eye blinks and muscle
+> twitches from brain activity, the recordings are whitened: once the channels are uncorrelated
+> with unit variance, ICA only has to find a rotation.
 
 ```python
 # whiten=True divides each score by sqrt(lambda_j); fit_transform = fit, then transform the same data -> (1797, 10)
@@ -539,10 +557,20 @@ scikit-learn:
 - **Incremental PCA** (`IncrementalPCA.partial_fit`): updates the components from
   mini-batches, so the data never need to be in memory at once.
 
+> **Real-life examples.**
+> - *Randomised SVD:* climate scientists run PCA — they call it EOF analysis — on decades of
+>   sea-surface temperature maps, each with hundreds of thousands of ocean grid points. Only the
+>   leading few components are wanted (over the tropical Pacific the first one is the El Niño
+>   pattern), which is exactly the case a randomised solver is built for.
+> - *Incremental PCA:* an energy utility receives one file per day with the half-hourly
+>   smart-meter readings of millions of homes (48 numbers per home and day). `partial_fit`
+>   updates the typical load-profile components file by file, without loading the full history.
+
 ```python
 from sklearn.decomposition import IncrementalPCA
 
 # (2000, 10) @ (10, 400) is a (2000, 400) matrix of rank 10; then noise of the same shape is added
+# e.g. 2000 households x 400 smart-meter readings, driven by 10 usage patterns plus noise
 X_big = rng.normal(size=(2000, 10)) @ rng.normal(size=(10, 400)) + rng.normal(size=(2000, 400))   # rank 10 + noise
 timings = {}                                      # solver name -> (seconds, variance captured)
 for solver in ["full", "randomized"]:
@@ -576,6 +604,12 @@ incremental    0.28 s   variance captured by 10 components: 0.9100
 - **Components are dense and global.** Every original feature contributes to every
   component, which makes them hard to read; sparse PCA and NMF (section 3.3) trade
   optimality for interpretability.
+
+> **Real-life example.** A delivery company runs PCA on 50 000 parcels described by weight (kg)
+> and length, width and height (cm). One parcel whose weight was typed in grams — 12 000
+> instead of 12 — adds more to the variance of the weight column than all the other parcels
+> together, and the first component swings round to point at that single record. Look for
+> impossible values before fitting, or use a robust variant.
 
 > **Going deeper.** PCA has a probabilistic formulation: if
 > $\mathbf{x} = \mathbf{W}\mathbf{z} + \boldsymbol{\mu} + \boldsymbol{\varepsilon}$ with
@@ -669,6 +703,7 @@ for eps in [0.1, 0.25, 0.5]:
     print(f"eps = {eps:.2f}: JL bound for n = 1000 points needs k >= {johnson_lindenstrauss_min_dim(1000, eps=eps)} dimensions")
 
 n_pts, d_high = 500, 5000
+# e.g. 500 news articles as standardised word weights over a 5000-word vocabulary
 X_high = rng.normal(size=(n_pts, d_high))          # 500 random points in 5000 dimensions
 # pairwise_distances(X) is the (n, n) matrix of Euclidean distances; np.triu_indices(n, 1) gives the (row, col)
 # indices above the diagonal, so each pair is kept once and the zero self-distances are dropped -> a 1-D array
@@ -704,6 +739,12 @@ independent of the original dimension. Random projections are the tool of choice
 $d$ is enormous (hashing text features, genomic data) and only distances matter — they are
 much cheaper than PCA and need no fitting, but unlike PCA they do not remove noise or
 reveal structure.
+
+> **Real-life example.** A news aggregator stores every article as word counts over a
+> 200 000-word vocabulary and must flag near-duplicates — the same agency story reposted by
+> dozens of outlets. One fixed random matrix with a few hundred columns maps each article to a
+> few hundred numbers with the distances between articles almost unchanged, so the duplicate
+> search runs in the small space and new articles are projected without refitting anything.
 
 ### 3.3 Non-negative matrix factorisation: parts and topics
 
@@ -896,6 +937,12 @@ This is *not* an SVD: the SVD needs a complete matrix, and filling the missing 9
 zeros or means and then truncating the SVD gives poor recommendations (though it is a
 reasonable starting point — try `TruncatedSVD` on the mean-filled matrix in exercise 4).
 
+> **Real-life example.** An online bookshop has two million customers and 300 000 titles, and a
+> typical customer has rated about twenty of them, so more than 99.9 % of the matrix is empty.
+> A user bias captures the reader who gives everything five stars; the latent factors might
+> come out as "literary versus genre fiction" or "fiction versus non-fiction". The "you might
+> also like" list is simply the unread titles with the highest predicted rating.
+
 **Two solvers.** The objective is non-convex in $(\mathbf{P}, \mathbf{Q})$ jointly, but
 *quadratic in $\mathbf{P}$ when $\mathbf{Q}$ is fixed* and vice versa. Hence
 
@@ -918,7 +965,7 @@ true factors, user and item biases, Gaussian noise, ratings clipped to 1–5, an
 of the entries observed.
 
 ```python
-n_users, n_items, true_rank = 500, 300, 4
+n_users, n_items, true_rank = 500, 300, 4      # e.g. readers, books and taste dimensions of a bookshop
 P_true = rng.normal(0, 1, (n_users, true_rank))      # true user factors, (500, 4)
 Q_true = rng.normal(0, 1, (n_items, true_rank))      # true item factors, (300, 4)
 bu_true, bi_true, mu_true = rng.normal(0, 0.4, n_users), rng.normal(0, 0.4, n_items), 3.5
@@ -1088,10 +1135,17 @@ linear projection to 2-D unrolls it: PCA shows the spiral seen from the side, wi
 from different turns of the roll (different colours) next to each other, and any other
 projection superimposes the layers.
 
+> **Real-life example.** A warehouse robot logs the signal strengths of 40 Wi-Fi access points
+> at thousands of spots. Each log is a point in 40 dimensions but is essentially fixed by two
+> numbers, the robot's position, so the logs lie on a curved 2-D sheet (signal strength falls off
+> non-linearly with distance). A flat projection can lay distant aisles on top of each other; a
+> method that follows chains of similar neighbouring logs can recover a map of the floor.
+
 ```python
 from sklearn.datasets import make_swiss_roll
 
 # X_roll is (800, 3); noise = standard deviation of the Gaussian noise added to every point
+# e.g. the signal strengths of 3 access points, a curved function of a robot's 2-D position on the floor
 X_roll, t_roll = make_swiss_roll(n_samples=800, noise=0.05, random_state=RANDOM_STATE)  # t = position along the roll
 fig = plt.figure(figsize=(12, 4.4))
 ax3 = fig.add_subplot(1, 2, 1, projection="3d")      # left panel of a 1 x 2 grid, with 3-D axes
@@ -1126,6 +1180,7 @@ from sklearn.datasets import make_circles
 from sklearn.decomposition import KernelPCA
 
 # two concentric circles (class 0 outer, class 1 inner); factor = inner radius / outer radius
+# e.g. x1, x2 = a patient's deviation from normal temperature and heart rate; inner = well, outer = unwell
 X_circ, y_circ = make_circles(n_samples=400, factor=0.3, noise=0.05, random_state=RANDOM_STATE)
 fig, axes = plt.subplots(1, 3, figsize=(15, 4.2))
 axes[0].scatter(X_circ[:, 0], X_circ[:, 1], c=[PALETTE[c] for c in y_circ], s=15)   # one colour per point, by class
@@ -1144,6 +1199,11 @@ plt.show()
 
 As always with kernels, `gamma` matters: too small and the kernel is nearly linear
 (nothing gained), too large and every point is only similar to itself.
+
+> **Real-life example.** Think of the two coordinates as a patient's deviation from normal body
+> temperature and from normal heart rate. Patients near the centre are well; patients far out
+> in *any* direction — fever or hypothermia, a racing or a very slow pulse — need attention. No
+> straight line separates the centre from the ring around it; after an RBF kernel PCA, one does.
 
 ### 5.2 t-SNE: how it works
 
@@ -1225,6 +1285,12 @@ sixth of the data) the picture blurs towards something closer to PCA. Note that 
 *labels* were never used — t-SNE found the classes from pixel similarity alone, which is
 why it is such a popular exploratory tool.
 
+> **Real-life example.** A cancer-research lab measures the activity of about 20 000 genes in
+> each of 10 000 single cells from a tumour biopsy. A t-SNE map of the cells shows islands, and
+> the biologists name each island a cell type (T cells, B cells, tumour cells, …) from the
+> marker genes active in it — without any labels, just as the digit classes appeared above.
+> Single-cell biology uses t-SNE and UMAP maps in this way every day.
+
 ### 5.3 How *not* to read a t-SNE plot
 
 Wattenberg, Viégas & Johnson (2016) catalogued the misreadings that t-SNE invites. Three
@@ -1252,6 +1318,7 @@ def tsne_gallery(datasets, perplexities, title):
     plt.show()
 
 # (a) two clusters with very different spreads; (b) three clusters at distances 5 and 30; (c) pure 50-D noise
+# e.g. (a) parts from a precise and a sloppy machine, (b) two related species and a distant one, (c) noise
 # np.r_[a, b] stacks arrays along the first axis; rng.normal([12, 0], 0.15, ...) is centred at x = 12, y = 0
 X_a = np.r_[rng.normal(0, 1.0, (80, 2)), rng.normal([12, 0], 0.15, (80, 2))]
 c_a = np.r_[np.zeros(80, int), np.ones(80, int)]          # labels: 80 zeros, then 80 ones
@@ -1277,6 +1344,12 @@ tsne_gallery({"(a) cluster sizes: std 1.0 vs 0.15": (X_a, c_a),
   noise produces convincing "clusters". If you see clusters, check that they survive a
   change of perplexity and of random seed — and ideally that they mean something
   downstream.
+
+> **Real-life example.** A marketing analyst runs t-SNE on the purchase histories of 50 000
+> shoppers and finds one compact island far from the rest. "A very homogeneous segment, very
+> different from everyone else" is the tempting report — but compactness and distance are
+> exactly what the map does not preserve, so both must be checked in the original features
+> before anyone builds a campaign around that segment.
 
 To these add: the perplexity must be smaller than the number of points (and the
 picture depends on it — always try several); the number of iterations must be enough for
@@ -1367,6 +1440,12 @@ a generative model. Autoencoders belong to a deep-learning course; their linear 
 common currency* of PCA, NMF, matrix-factorisation recommenders and autoencoders — they
 differ in the constraints placed on the encoder and decoder.
 
+> **Real-life example.** A card issuer trains an autoencoder on millions of normal transactions
+> (amount, merchant category, time of day, distance from home, …). Typical transactions pass
+> through the bottleneck almost unchanged; an unusual one is reconstructed badly, and a large
+> reconstruction error sends it to a fraud analyst — PCA-style anomaly detection with a curved
+> instead of a flat "normal" surface.
+
 ## 7. Using dimensionality reduction responsibly
 
 1. **Decide what the reduction is for.** For *visualisation*, any method that makes the
@@ -1404,6 +1483,12 @@ in the objective knows that one direction happens to separate your classes. When
 discriminative direction is a *low*-variance one, PCA discards it first, and the "cleaned
 up" representation is worse than the raw features.
 
+> **Real-life example.** A bottling plant photographs every bottle on the line to catch hairline
+> cracks. Across the images, most of the pixel variance comes from lighting, the bottle's exact
+> position and the printed label; a crack changes a few pixels by a little. PCA keeps the
+> lighting and position directions and ranks the crack direction near the very end — compress
+> to the "top" components and the defect is gone.
+
 The construction is deliberately extreme so that the effect is unmistakable. We build
 $n = 600$ points in $\mathbb{R}^{10}$:
 
@@ -1418,6 +1503,7 @@ behaviour, but it makes the point that "look at the features one by one" would n
 either.
 
 ```python
+# e.g. 600 bottle images: y = cracked or not, signal = the faint crack, nuisance = lighting, position, label
 n_lv, d_lv = 600, 10
 y_lv = rng.integers(0, 2, size=n_lv)            # 600 random labels, 0 or 1
 signal = np.where(y_lv == 1, 0.6, -0.6) + rng.normal(0, 0.35, n_lv)     # sd ~ 0.69, carries the label
@@ -1563,6 +1649,7 @@ reproduce those four numbers. PCA nearly does — it is an orthogonal projection
 only shrink distances, never invent them — while t-SNE reports something else entirely.
 
 ```python
+# e.g. 20 blood values of three patient groups: A typical, B a tight subgroup near A, C varied and far away
 centres_geo = np.zeros((3, 20))                      # one cluster centre per row, in 20-D; A stays at the origin
 centres_geo[1, 0], centres_geo[2, 0] = 10.0, 40.0    # B at 10 and C at 40 along the first axis
 radii_geo = np.array([1.0, 0.25, 3.0])               # standard deviation of each cluster
@@ -2038,6 +2125,11 @@ look at, and one of them is genuinely useful:
   in the original space, penalised by how far the intruders ranked. It is in $`[0, 1]`$, and
   unlike the KL divergence it is comparable across settings — a direct measurement of the
   one thing t-SNE claims to preserve.
+
+> **Real-life example.** A music-streaming service shows listeners a 2-D map of its catalogue
+> and lets them click on the songs around a favourite. Trustworthiness measures what that relies
+> on: are the songs placed next to a song on the map really similar to it in the original audio
+> features? A value close to 1 means few strangers sit among the neighbours.
 
 The perplexity panels of section 5.2 are re-used here with those two numbers attached.
 

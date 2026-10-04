@@ -95,7 +95,14 @@ statsmodels is not installed — the optional cross-checks against statsmodels a
 A **time series** is a sequence $`y_1, y_2, \dots, y_T`$ observed at regular intervals
 (monthly, hourly, …). We write $T$ for the number of observations and $h$ for the
 **forecast horizon**: $`\hat{y}_{T+h|T}`$ is the forecast of $`y_{T+h}`$ made with the data up to
-time $T$ (the **forecast origin**). Let us load our two examples.
+time $T$ (the **forecast origin**).
+
+> **Real-life example.** A supermarket orders fresh produce on Monday evening for delivery on
+> Thursday, to be sold from Thursday to Sunday. Monday evening is the forecast origin (the last
+> sales it knows), and the horizons that matter are 3 to 6 days: a forecast that is excellent one
+> day ahead is of no use to it if it falls apart by day six.
+
+Let us load our two examples.
 
 ```python
 # air: a Series of monthly values with a DatetimeIndex; energy: a DataFrame with one row per hour.
@@ -288,6 +295,12 @@ that we can *undo* after forecasting:
 - both can be combined, and the differenced series can be integrated back:
   $`y_{T+h} = y_{T+h-m} + y'_{T+h}`$.
 
+> **Real-life example.** A share price is the textbook non-stationary series: it wanders with no
+> fixed level (it is close to a random walk), so its average over the last five years says little
+> about next year. Its daily returns — the first difference of the log price, roughly the
+> percentage change — hover around a mean near zero, which is why financial risk models work with
+> returns rather than prices.
+
 > **Warning.** Difference only as much as necessary. Every difference amplifies noise and
 > introduces negative autocorrelation at lag one; over-differenced series are harder, not
 > easier, to model.
@@ -359,6 +372,12 @@ equations give the same quantity for a stationary series.) The PACF answers "how
 lag $k$ add once lags $1, \dots, k-1$ are already in the model?", which is exactly what we
 need to choose the order of an autoregressive model in section 3.4.
 
+> **Real-life example.** A flood-warning service reads a river gauge once a day. Today's level is
+> strongly correlated with the level two days ago (a large ACF at lag 2), but mostly because both
+> are close to yesterday's level: once yesterday is known, the day before adds little, so the PACF
+> at lag 2 is small. The river's memory works through the previous day — the signature of an
+> autoregressive model of order 1.
+
 ```python
 def acf(x, nlags):
     """Sample autocorrelation r_0..r_nlags (biased estimator, as in statsmodels' default).
@@ -410,6 +429,7 @@ def plot_correlogram(values, ax, title, n_obs):
 
 
 # A simulated AR(2) process: y_t = 0.6 y_{t-1} - 0.3 y_{t-2} + e_t
+# e.g. a room's temperature minus the thermostat setting (°C): the heating overshoots, then corrects
 n_sim = 500
 eps = rng.normal(size=n_sim)          # the white-noise shocks e_t (standard normal)
 ar2 = np.zeros(n_sim)                 # the first two values stay 0 as starting values
@@ -497,6 +517,15 @@ origin 3:  train ##############..                test ...
                  ------------------------------> time
 ```
 
+> **Real-life examples.**
+> - A water utility checks its forecast of next week's daily consumption by replaying last year:
+>   it pretends each Monday is "today", fits on everything before it, forecasts the coming week
+>   and compares with the meter readings. Fifty-two origins average over the heatwave week and the
+>   holiday week instead of letting one of them decide.
+> - A city's public-transport operator forecasting ridership after the 2020 lockdowns and the
+>   spread of working from home would use a rolling window: the commuting habits of 2019 have
+>   partly gone, and an expanding window would keep averaging them in.
+
 ### 2.2 Metrics
 
 Let $`e_{T+h} = y_{T+h} - \hat{y}_{T+h|T}`$ be the forecast errors over a test window of $H$
@@ -529,6 +558,17 @@ absolute scaled error**: divide the MAE by the in-sample MAE of the seasonal-nai
 MASE $`< 1`$ means "better than the naive forecast was on the training data"; it is defined
 for any series, symmetric, and comparable across series. It is the primary metric of this
 notebook (and of the M4 competition, alongside sMAPE).
+
+> **Real-life examples.**
+> - A call centre staffs every half-hour from a forecast of incoming calls. Over ten half-hours, a
+>   forecast that is five calls off every time and one that is exact nine times but fifty calls off
+>   once have the same MAE, yet the first error is absorbed by the queue and the second means
+>   customers hanging up. RMSE, which squares the errors, rates the first forecast about three
+>   times better (5 against 16) — the metric to use when big misses cost disproportionately more.
+> - A pharmacy sells a rarely used drug 0, 1 or 2 packs a day. On a day without sales MAPE divides
+>   by zero, and on a day with one sale a forecast of two counts as a 100 % error. MASE, which
+>   divides by the naive forecast's error instead, stays meaningful, and it lets the chain put this
+>   drug and its best-selling painkiller (hundreds of packs a day) in one league table.
 
 ```python
 def mae(y, f):
@@ -594,6 +634,12 @@ Four baselines belong in every comparison:
 | **naive** (persistence) | $`y_T`$ | a random walk |
 | **seasonal naive** | $`y_{T+h-m(k+1)}`$, $k = \lfloor (h-1)/m \rfloor$ — the value from one season ago | a seasonal random walk |
 | **drift** | $`y_T + h\,\frac{y_T - y_1}{T-1}`$ — extrapolate the average change | a random walk with drift |
+
+> **Real-life example.** Weather services judge their forecasts against exactly these references:
+> *persistence* (tomorrow will be like today — the naive forecast) and *climatology* (the
+> long-term average for that date — the mean forecast, computed for each calendar day). A
+> temperature forecast that cannot beat persistence for tomorrow has no skill, however elaborate
+> the model behind it.
 
 ```python
 def mean_forecast(y, h, **kw):
@@ -718,6 +764,11 @@ convenient when the forecaster is a scikit-learn model (section 4). Its `test_si
 length of every test block and `gap` can leave a buffer between training and test data — for
 example when the target is only known with a delay.
 
+> **Real-life example.** A public-health agency forecasting weekly flu cases knows that the counts
+> for the latest weeks are incomplete, because laboratory reports arrive late. If a weekly count is
+> only reliable after, say, three weeks, a model deployed on a Monday is trained on data that end
+> three weeks earlier, and `gap=3` makes the backtest reproduce that blind spot.
+
 ```python
 from sklearn.model_selection import TimeSeriesSplit     # cross-validation splitter that respects time order
 
@@ -766,6 +817,12 @@ $\alpha \to 1$ gives the naive forecast, $\alpha \to 0$ the mean. The parameter 
 by minimising the sum of squared **one-step-ahead errors** $`\sum_t (y_t - \hat{y}_{t|t-1})^2`$
 on the training data.
 
+> **Real-life example.** A spare-parts warehouse forecasts next week's demand for each of 20 000
+> items, most with fairly steady demand and no trend or season. SES needs a single stored number
+> per item and one line of arithmetic per week: with a smoothing parameter of 0.2, a week that
+> sells 10 units more than forecast raises the next forecast by 2. This is the inventory-control
+> setting of Brown's (1959) book.
+
 ### 3.2 Holt's linear trend method
 
 SES has no notion of trend: its forecast is flat. Holt (1957) added a second state, the
@@ -782,6 +839,11 @@ smoothed version of the recent level changes. Because a linear extrapolation is 
 optimistic far ahead, the **damped trend** variant replaces $`h\,b_t`$ by
 $`(\phi + \phi^2 + \dots + \phi^h)\, b_t`$ with $`0 < \phi < 1`$ — one of the most reliable
 methods in the M-competitions (Gardner, 1985).
+
+> **Real-life example.** An app start-up gained about 5 000 users a month last year, with no
+> seasonal pattern. Holt's method carries those 5 000 a month forward indefinitely; the damped
+> version lets the monthly gain shrink step by step, which is usually the safer assumption for a
+> budget, because growth that fast rarely lasts.
 
 ```python
 def ses(y, alpha, h):
@@ -974,6 +1036,11 @@ method that works for *any* forecaster is the **bootstrapped-residual simulation
 one-step residuals, generate many possible futures step by step (each simulated value is fed
 back into the recursion), and read the intervals off the quantiles of the simulated paths.
 
+> **Real-life example.** A hospital planning its winter staffing receives a point forecast of 120
+> emergency admissions a day. What it rosters for is the upper end of the interval, say 150,
+> because turning patients away costs far more than an idle nurse — and without an interval it
+> cannot even tell whether 150 is likely or far-fetched.
+
 ```python
 def simulate_hw_paths(y, params, m, h, n_paths, rng, seasonal="multiplicative"):
     """Bootstrap future paths: forecast one step, add a resampled (relative) residual, repeat.
@@ -1086,6 +1153,11 @@ Jenkins, 1970; Box et al., 2015) describes its *autocorrelation*. Three building
   $`y_t = c + \varepsilon_t + \theta_1 \varepsilon_{t-1} + \dots + \theta_q \varepsilon_{t-q}`$;
   the signature is the mirror image (ACF cuts off after lag $q$).
 - **I($d$)** — integration: the model is applied to the $d$-th difference of the series.
+
+> **Real-life example.** A snowstorm closes a parcel depot for a day: that day's deliveries
+> collapse, the next day's are unusually high while the backlog clears, and the day after that
+> everything is back to normal. A shock that echoes for exactly one period and then vanishes is an
+> MA(1) pattern; in an AR model the echo would instead fade away gradually.
 
 ARIMA($p, d, q$) combines them, and the seasonal ARIMA($p,d,q$)($P,D,Q$)<span></span>$`_m`$ adds seasonal
 AR/MA terms at multiples of $m$ and a seasonal difference $D$. The **Box–Jenkins procedure**
@@ -1275,6 +1347,12 @@ of observations, it pays to turn forecasting into a **supervised regression prob
 build a feature vector for every time step from information that is available at the
 forecast origin, and let a flexible model (notebook 10's gradient boosting) learn the
 mapping. This is how the winners of the M5 competition worked (Makridakis et al., 2022).
+
+> **Real-life example.** A utility that buys electricity on a day-ahead market submits its
+> quantities for every hour of tomorrow around midday today. At that moment it knows this
+> morning's demand and has a weather forecast for tomorrow, but not tomorrow's 7 a.m. demand: a
+> feature such as "demand one hour before the target hour" is simply not available. Forecasting
+> 24 hours ahead, as below, is a simplified version of exactly this constraint.
 
 ### 4.1 Framing the problem and engineering features
 
@@ -1653,6 +1731,15 @@ widen it with a simple **conformal-style correction**: on a calibration window h
 training, compute the residual quantile that would have achieved the desired coverage, and
 add that margin to the interval.
 
+> **Real-life examples.**
+> - A bakery bakes a loaf for €2 and sells it for €5. An unsold loaf loses €2, a customer turned
+>   away costs €3 of profit, and the best quantity to bake is the 60th percentile of tomorrow's
+>   demand, not its mean (the "newsvendor" rule: the quantile 3 / (3 + 2)). For such decisions the
+>   quantile forecast is not a by-product — it *is* the decision.
+> - A ride-hailing app that says "your driver arrives in 4–7 minutes" is quoting a prediction
+>   interval. If drivers turn up inside it only 6 times in 10, users stop trusting it — which is
+>   why coverage, not just width, has to be measured.
+
 ```python
 calib_hours = 24 * 7 * 4                                  # the last 4 weeks of training data for calibration
 X_fit, y_fit = X_tr.iloc[:-calib_hours], y_tr.iloc[:-calib_hours]    # the quantile models train on the rest
@@ -1953,6 +2040,7 @@ def gb_lag_forecast(y_hist, h, lags=AIR_LAGS, seasonal_feature=True, **kw):
 
 
 # a trend with autocorrelated noise and no seasonality: 120 training points, 24 to forecast
+# e.g. monthly subscribers (thousands) of a streaming service that keeps growing: 10 years to fit, 2 to forecast
 trend_noise = np.cumsum(rng.normal(0, 1.2, 144)) * 0.5      # cumulative sum of random steps = a random walk
 trend_series = 100 + 2.5 * np.arange(144) + trend_noise     # a straight line rising 2.5 per step, plus that noise
 tr_train, tr_test = trend_series[:120], trend_series[120:]

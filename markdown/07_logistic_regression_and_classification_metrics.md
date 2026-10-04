@@ -88,7 +88,8 @@ def make_binary_1d(n, slope=1.6, rng=rng):
 # LinearRegression: ordinary least squares | LogisticRegression: the classifier this notebook is about
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
-x_bin, y_bin = make_binary_1d(200)
+x_bin, y_bin = make_binary_1d(200)            # e.g. x = a pump's vibration level, y = 1 if it failed within a week
+# e.g. 30 pumps that vibrate so violently that their failure is obvious
 x_ext = np.concatenate([x_bin, rng.uniform(7, 9, 30)])          # 30 "easy" positives, far right
 y_ext = np.concatenate([y_bin, np.ones(30, dtype=int)])         # ... all labelled 1
 
@@ -127,6 +128,11 @@ which are *not* errors under any threshold — swing its 0.5-crossing to the rig
 logistic fit barely moves: its loss saturates, so a point that is already confidently
 correct contributes almost nothing more.
 
+> **Real-life example.** A water company predicts from a vibration reading whether a pump will
+> fail within a week. Adding 30 pumps that vibrate so violently that any model calls them
+> failures moves the least-squares line's 0.5 crossing to the right, so some borderline pumps
+> are no longer sent for maintenance — a decision changed by cases that were never in doubt.
+
 > **Going deeper.** For two classes, least squares on $`\{0,1\}`$ labels is *linear
 > discriminant analysis* in disguise up to a scale factor; the failure above is the
 > multi-class "masking" problem in miniature (Hastie et al., 2009, §4.2). The cure is to
@@ -164,6 +170,12 @@ with the two properties we will use constantly:
 The derivative identity is what makes the gradient of the loss so simple. Note also that
 $\sigma$ is *steepest at $z = 0$<span></span>* (slope $1/4$) and flattens out in both tails: moving the
 score from 3 to 4 changes the probability much less than moving it from 0 to 1.
+
+> **Real-life example.** A bank's default model might add 0.7 to the log-odds for every missed
+> payment in the past year, which multiplies the odds of default by about 2. For a customer at
+> 1 % (odds 1 to 99) one missed payment means about 2 %; for a customer at 50 % (odds 1 to 1) it
+> means 67 % (odds 2 to 1). The same step on the log-odds scale is a small or a large step in
+> probability, depending on where the customer starts.
 
 ```python
 def sigmoid(z):
@@ -243,6 +255,7 @@ from sklearn.datasets import make_classification     # generates a random synthe
 
 # 300 points with 2 informative features (n_redundant=0: no extra features made from them) and one cluster per class;
 # class_sep sets how far apart the classes are, flip_y=0.06 gives 6 % of the points a randomly assigned label (noise)
+# e.g. x1, x2 = a web-shop visitor's (standardised) time on site and pages viewed, y = 1 if they bought
 X2, y2 = make_classification(n_samples=300, n_features=2, n_redundant=0, n_informative=2,
                              n_clusters_per_class=1, class_sep=1.1, flip_y=0.06,
                              random_state=RANDOM_STATE)
@@ -307,6 +320,11 @@ for a perfect confident prediction and $\to \infty$ for a confident mistake. **L
 unbounded**, which is why a single over-confident error can dominate it — a fact we return
 to in section 7.
 
+> **Real-life example.** A tennis-prediction site gives the underdog a 1 % chance of winning. If
+> the underdog wins, that one match costs −log(0.01) ≈ 4.6 in log loss — as much as almost seven
+> honest 50 % predictions (0.69 each). A prediction of 0 % that goes wrong makes the average log
+> loss infinite, however good all the other predictions were.
+
 ### 2.2 The gradient, the Hessian and convexity
 
 Differentiate. With $\sigma'(z) = \sigma(z)(1-\sigma(z))$, the chain rule collapses
@@ -345,6 +363,7 @@ and no intercept so that the whole objective fits on a page.
 
 ```python
 # another 2-feature data set, with 10 % random labels
+# e.g. two survey answers of 200 respondents, y = 1 if they later bought the product
 X_surf, y_surf = make_classification(n_samples=200, n_features=2, n_redundant=0, n_informative=2,
                                      n_clusters_per_class=1, class_sep=0.9, flip_y=0.10, random_state=7)
 X_surf = X_surf - X_surf.mean(axis=0)                    # centred: the intercept is ~0
@@ -834,6 +853,11 @@ In practice the two rarely differ much in accuracy; the multinomial fit gives co
 probabilities across classes and is the better default. OvR remains useful when you need
 $K$ independent, individually thresholdable scores — for example in multi-label problems.
 
+> **Real-life example.** A news site tags every article with any of 20 topics, and an article
+> about a football club's finances is both "sport" and "business". Softmax probabilities add up
+> to 1 across the topics and so force a single winner; one binary logistic regression per topic
+> (one-vs-rest), each with its own threshold, lets an article carry several tags.
+
 ### 4.4 Ten classes: handwritten digits
 
 ```python
@@ -1073,6 +1097,13 @@ not 0.5. Two more rates complete the picture:
 \text{NPV} = \frac{TN}{TN+FN}.
 ```
 
+> **Real-life examples.**
+> - *Precision first.* A spam filter: when it moves an e-mail to the spam folder it had better
+>   be right, because one job offer lost there hurts more than ten spam mails in the inbox.
+> - *Recall first.* Airport baggage screening: of all the bags that really contain a weapon, as
+>   many as possible must be caught, and the price is many harmless bags opened by hand (low
+>   precision).
+
 Let us compute them all by hand from the four counts and check against scikit-learn.
 
 ```python
@@ -1127,6 +1158,14 @@ MCC is the metric to reach for when you want a *single* honest number on an imba
 binary problem (Chicco & Jurman, 2020): unlike $`F_1`$ it cannot be inflated by ignoring the
 negative class.
 
+> **Real-life examples.**
+> - *Cohen's κ.* Two content moderators label the same 1 000 posts as acceptable or harmful and
+>   agree on 90 % of them. If each calls 85 % of all posts acceptable, they would agree on about
+>   75 % by pure chance, so κ is only about 0.6.
+> - *Likelihood ratios.* A rapid test with LR+ = 10 is used on a patient whose symptoms give a
+>   10 % pre-test probability (odds 1 to 9). A positive result multiplies the odds by 10, to 10
+>   to 9: a post-test probability of about 53 % — far more likely, but not yet certain.
+
 ```python
 # cohen_kappa_score: agreement corrected for chance | class_likelihood_ratios: returns the pair (LR+, LR-)
 from sklearn.metrics import cohen_kappa_score, class_likelihood_ratios
@@ -1164,6 +1203,11 @@ averaging scheme is a *choice about what you care about*:
   counts equally, so rare classes matter as much as frequent ones.
 - **weighted** — like macro but weighting each class by its support. A compromise that is
   easy to misread.
+
+> **Real-life example.** A customer-service team routes incoming tickets into three queues: 90 %
+> billing, 9 % technical and 1 % legal complaints. Micro-F1 is dominated by the billing tickets
+> and can look excellent even if every legal complaint lands in the wrong queue; macro-F1 gives
+> the legal queue a third of the weight and drops sharply when it fails.
 
 ```python
 from sklearn.metrics import f1_score as f1         # the same f1_score, imported under a shorter name
@@ -1376,6 +1420,11 @@ plt.show()
 The three ROC curves lie almost on top of each other while the PR curves fall apart. If your
 positives are rare and you care about the workload created by false alarms, report AP.
 
+> **Real-life example.** A card issuer sees one fraudulent payment in 1 000. A model that catches
+> every fraud at a false positive rate of 1 % looks superb on the ROC curve, yet it flags about
+> ten genuine payments for each real fraud: a precision of about 9 %, and ten customers called
+> for nothing per fraud caught. The PR curve shows that workload; the ROC curve hides it.
+
 ### 6.5 Choosing the threshold from a cost matrix
 
 Suppose keeping a churning customer earns $`c_{FN} = 300`$ (the margin lost if we miss them)
@@ -1467,6 +1516,11 @@ are positive. Calibration is what makes a probability usable in the expected-cos
 calculation above; ranking metrics such as AUC are blind to it. The diagnostic is the
 **reliability diagram**: bin the predictions by predicted probability and plot the observed
 frequency against the mean prediction in each bin. Perfect calibration is the diagonal.
+
+> **Real-life example.** A weather service is calibrated if, on all the days for which it
+> forecast a 70 % chance of rain, it rained on about 70 % of them. Only then can an open-air
+> festival weigh the forecast against the cost of renting tents. The Brier score below was
+> invented for exactly this check of weather forecasts (Brier, 1950).
 
 Two proper scoring rules summarise it in a number:
 
@@ -1583,6 +1637,11 @@ The AUC barely moves (both maps are monotone, so the ranking is preserved) while
 and the Brier score improve substantially. Calibrate whenever a downstream decision uses the
 probability as a number rather than as a rank.
 
+> **Real-life example.** A parcel service adds up the predicted probabilities that each of
+> tomorrow's 2 000 deliveries will need a second attempt, to decide how many drivers to
+> schedule. If the model says 20 % where the true rate is 10 %, the plan has 400 repeat visits
+> instead of about 200 — even if the model ranks the parcels perfectly.
+
 ## 8. Class imbalance
 
 Three tools, in increasing order of how much they disturb the model:
@@ -1598,8 +1657,15 @@ Three tools, in increasing order of how much they disturb the model:
    otherwise synthetic copies of validation points end up in training. `imbalanced-learn`
    provides pipeline-aware versions; plain scikit-learn does not.
 
+> **Real-life example.** A quality lab has 80 cracked castings among 20 000 inspected parts and
+> creates synthetic cracked parts with SMOTE *before* splitting. Synthetic parts interpolated
+> from a validation casting then sit in the training data, and the validation score rewards
+> recognising near-copies rather than cracks — an estimate that collapses on next month's
+> production.
+
 ```python
 # weights=[0.94, 0.06]: about 6 % of the points belong to class 1
+# e.g. two measurements of 1 200 castings, 6 % of them cracked
 X_imb, y_imb = make_classification(n_samples=1200, n_features=2, n_redundant=0, n_informative=2,
                                    n_clusters_per_class=1, weights=[0.94, 0.06], class_sep=1.0,
                                    flip_y=0.02, random_state=RANDOM_STATE)
@@ -1656,12 +1722,19 @@ model is a coin flip; the same model with a degree-2 feature expansion — which
 $`x_1^2 + x_2^2`$ available — solves the problem exactly, and so does a decision tree
 (notebook 9) with no feature engineering at all.
 
+> **Real-life example.** The risk from the blood potassium level is U-shaped: both too little and
+> too much can cause dangerous heart rhythms. A logistic regression on the raw level can only say
+> "the higher, the riskier" or "the lower, the riskier"; give it the squared (centred) level as
+> an extra feature and it can describe the safe band in between — the one-dimensional version of
+> the circles below.
+
 ```python
 from sklearn.datasets import make_circles                  # two concentric rings of points, one per class
 from sklearn.preprocessing import PolynomialFeatures       # adds powers and products of the features
 from sklearn.tree import DecisionTreeClassifier
 
 # noise: standard deviation of the noise added to the points; factor=0.45: inner ring radius / outer ring radius
+# e.g. two standardised blood values per patient: inner ring = both in the normal range
 X_circ, y_circ = make_circles(n_samples=400, noise=0.09, factor=0.45, random_state=RANDOM_STATE)
 candidates = {
     "logistic regression (fails)": LogisticRegression(),
@@ -1692,10 +1765,16 @@ optimiser stops at whatever `max_iter` allows, standard errors explode, and the 
 absurdly over-confident. The symptom is easy to spot: coefficients that keep growing as you
 weaken the penalty.
 
+> **Real-life example.** In a small drug trial, all 6 patients on the highest dose had a side
+> effect, and the dose enters the model as a "highest dose: yes/no" column. Nothing in the data
+> limits that column's coefficient, so an unpenalised fit lets it grow without bound and claims
+> certainty — a side-effect probability of 1.000 — from six people.
+
 ```python
 from sklearn.datasets import make_blobs         # Gaussian clusters ("blobs") around the given centres
 
 # two tight, distant clusters (perfectly separable) and two wide, close ones (overlapping); cluster_std is the spread
+# e.g. length and weight of fish: two very different species (separable), two similar ones (overlapping)
 X_sep, y_sep = make_blobs(n_samples=120, centers=[[-2.2, -2.2], [2.2, 2.2]], cluster_std=0.65,
                           random_state=RANDOM_STATE)
 X_ovl, y_ovl = make_blobs(n_samples=120, centers=[[-1.0, -1.0], [1.0, 1.0]], cluster_std=1.5,
@@ -1776,6 +1855,7 @@ penalty choice genuinely matters — and 5-fold stratified CV throughout.
 from sklearn.model_selection import StratifiedKFold, cross_val_score, cross_validate
 
 # 25 features: 5 informative, 3 redundant (combinations of the informative ones) and 17 of pure noise
+# e.g. 600 loan applications with 25 recorded attributes, of which only 5 carry signal about default
 X_tune, y_tune = make_classification(n_samples=600, n_features=25, n_informative=5, n_redundant=3,
                                      class_sep=1.0, flip_y=0.05, random_state=RANDOM_STATE)
 cv5 = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)    # shuffle the rows before splitting
@@ -1879,6 +1959,7 @@ wiggle — exactly the role it plays for an SVM (notebook 11).
 ```python
 from sklearn.datasets import make_moons         # two interleaving half-circles, one per class
 
+# e.g. map positions of 300 houses, class = which bank of a winding river they stand on
 X_wig, y_wig = make_moons(n_samples=300, noise=0.32, random_state=RANDOM_STATE)   # noise: std of the added noise
 Cs_show = [0.001, 0.01, 0.1, 1.0, 100.0, 100000.0]
 fig, axes = plt.subplots(2, 3, figsize=(15.5, 8.4))
@@ -1945,6 +2026,7 @@ probabilities.
 ```python
 import time          # time.perf_counter() is a high-resolution clock for timing code
 
+# e.g. 12 000 insurance claims with 60 recorded attributes, class = fraudulent or not
 X_big, y_big = make_classification(n_samples=12000, n_features=60, n_informative=20,
                                    random_state=RANDOM_STATE)
 X_big = StandardScaler().fit_transform(X_big)

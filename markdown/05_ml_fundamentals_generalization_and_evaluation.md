@@ -87,6 +87,15 @@ Within supervised learning, the type of the target decides the task:
 Many other problems (ranking, structured prediction, forecasting) are reductions to these
 two.
 
+> **Real-life examples.**
+> - A streaming service that predicts how many hours a subscriber will watch next month
+>   solves a regression problem; whether the subscriber will cancel is binary classification;
+>   which of 12 genres they will watch most is multi-class; which tags describe a film (it
+>   can be "comedy" and "romance" at once) is multi-label.
+> - A call centre has recorded 50 000 hours of customer calls but can afford human
+>   transcripts of only 500 hours: training a speech recogniser on both is semi-supervised
+>   learning.
+
 ### 1.2 The supervised learning problem, formally
 
 Let us fix notation that will be used throughout the course (see also the notation table in
@@ -134,6 +143,13 @@ and the most important learning principle in this course is simply
 > for some $\mathcal{H}$ and some loss, often with an added *regularisation* term that
 > discourages complex hypotheses (notebook 6).
 
+> **Real-life example.** An estate agency values flats automatically. The features are floor
+> area, rooms, district and year built; the target is the sale price. The hypothesis space
+> might be all linear functions of the features, the loss the squared error. The risk is the
+> average loss over all flats the agency will value in future, the empirical risk the average
+> over its 2 000 past sales. Even the Bayes predictor errs, because two flats with identical
+> features can sell for different prices — their buyers differ.
+
 The catch, and the reason this notebook exists: $`\hat{R}_n(\hat{f})`$ is an **optimistically
 biased** estimate of $R(\hat{f})$, because $\hat{f}$ was chosen to make $`\hat{R}_n`$ small.
 The larger and more flexible $\mathcal{H}$, the larger the gap can be. Statistical learning
@@ -167,6 +183,7 @@ def sample_population(n, rng=rng):
     Returns the arrays (x, y), each of length n. The default rng=rng is evaluated once, when the
     function is defined, so it is the notebook's seeded generator.
     """
+    # e.g. x = a flat's floor area and y = its sale price, both rescaled to small numbers
     x = rng.uniform(-3, 3, n)                # n x-values, uniform on [-3, 3)
     return x, 1.0 + 0.8 * x + rng.normal(0, 1.0, n)
 
@@ -295,8 +312,9 @@ def true_function(x):
 
 def make_sine_data(n, noise=0.3, rng=rng):
     """Draw n points with x uniform on [0, 1) and y = sin(2 pi x) + N(0, noise^2); returns the arrays (x, y)."""
+    # e.g. a harbour's tide gauge: x = time within one tidal cycle of about 12.4 hours, y = water level in metres
     x = rng.uniform(0, 1, n)
-    y = true_function(x) + rng.normal(0, noise, n)
+    y = true_function(x) + rng.normal(0, noise, n)      # e.g. passing waves are the noise
     return x, y
 
 x_train, y_train = make_sine_data(30)
@@ -364,6 +382,14 @@ Three regimes are visible:
 - **Overfitting** (degree 9–15): the polynomial wiggles through the noise. Training error
   keeps falling, but test error explodes. The model has high **variance**: a different
   sample of 30 points would give a completely different curve.
+
+> **Real-life example.** Google Flu Trends estimated flu activity from search queries: out of
+> 50 million candidate queries it kept the 45 whose weekly volumes best matched a few years
+> of official flu figures. Lazer et al. (2014) describe this as fitting 50 million search
+> terms to 1 152 data points, a set-up that invites overfitting: some terms matched only
+> because they were seasonal ("part flu detector, part winter detector"), and on new data the
+> model failed — in February 2013 it estimated more than double the share of flu-related
+> doctor visits that the US health authority (CDC) recorded.
 
 The standard picture summarises this as a U-shaped test error against model complexity.
 Let us draw it — and, because a single training set is noisy, average over several
@@ -455,6 +481,13 @@ Simple models: high bias, low variance. Flexible models: low bias, high variance
 optimal complexity balances the two — the *bias–variance trade-off*. Increasing $n$ reduces
 variance (the fit is anchored by more points) but leaves bias unchanged, which is exactly
 why a bigger dataset lets us afford a more flexible model.
+
+> **Real-life example.** A retail chain forecasts next month's sales for each of its 500
+> stores. Predicting every store with the chain-wide average is a high-bias model: it is
+> systematically wrong for big-city and village stores alike, but would hardly change if
+> refitted on another year's data. A separate model with 40 features per store, fitted on
+> that store's 24 monthly figures, is the opposite: right on average, but its forecasts jump
+> with the quirks of the two years it happened to see.
 
 Let us verify the decomposition numerically: draw many training sets, fit polynomials of
 each degree, and measure bias and variance on a grid of test points.
@@ -558,6 +591,12 @@ Why three and not two? Because choosing hyper-parameters by looking at an error 
 itself a form of fitting: if we try 100 configurations and keep the one with the best
 validation score, that score is optimistically biased in exactly the same way as training
 error (Cawley & Talbot, 2010). The untouched test set protects us from fooling ourselves.
+
+> **Real-life example.** Kaggle competitions build this protocol into their rules. While a
+> competition runs, submissions are ranked on a public leaderboard computed from part of the
+> hidden test data; the final ranking uses the other part, revealed only at the end. Teams
+> that tuned their models to climb the public leaderboard often drop many places on the final
+> one — they had been fitting the validation set.
 
 This is worth a picture, because the whole discipline of honest evaluation is contained in
 it: every row of the data set belongs to exactly one part, and each part answers exactly one
@@ -921,6 +960,13 @@ inner loop for selection (Varma & Simon, 2006). Notebook 12 shows nested CV with
 select $k$ by CV on the train+validation data, refit on all of it, and evaluate **once** on
 the held-out test set.
 
+> **Real-life example.** A building-materials lab has tested 300 concrete mixtures and tries
+> 500 model configurations to predict compressive strength from the recipe, keeping the one
+> with the best cross-validated error. The winner of 500 noisy estimates is partly the
+> luckiest, so its score flatters it. Nested cross-validation repeats the whole search inside
+> each outer fold and so measures what the procedure "pick the best of 500" delivers on
+> mixtures it has never seen.
+
 ```python
 # refit the chosen configuration on all train+validation rows, then score it once on the untouched test set
 final_model = Pipeline([("scale", StandardScaler()), ("knn", KNeighborsClassifier(n_neighbors=best_k_cv))])
@@ -953,6 +999,7 @@ from matplotlib.colors import ListedColormap      # a colour map built from an e
 from sklearn.model_selection import KFold, GroupKFold, TimeSeriesSplit
 
 n_demo = 40
+# e.g. 8 patients with 5 clinic visits each (for TimeSeriesSplit: 40 consecutive days)
 groups = np.repeat(np.arange(8), 5)               # 8 entities with 5 rows each
 X_demo, y_demo = np.zeros((n_demo, 1)), np.zeros(n_demo)   # dummy data: the splitters only need the number of rows
 # one (title, splitter, groups or None) tuple per panel
@@ -1081,6 +1128,12 @@ set size*. It is the single most useful diagnostic for the bias/variance questio
 - Curves have converged with a small gap at a good score → you are done; a bigger model
   might help, more data will not.
 
+> **Real-life example.** A radiology start-up has 2 000 labelled chest X-rays and could pay
+> radiologists to label 10 000 more. If the validation curve is still rising at 2 000 images,
+> with a wide gap below the training curve, the labels are money well spent; if both curves
+> have flattened close together, more labels will barely move the score, and the budget is
+> better spent on a more flexible model or better features.
+
 ```python
 # learning_curve returns the raw numbers; LearningCurveDisplay computes and plots them (only the Display is used)
 from sklearn.model_selection import learning_curve, LearningCurveDisplay
@@ -1175,6 +1228,7 @@ from sklearn.feature_selection import SelectKBest, f_classif
 
 from sklearn.model_selection import RepeatedStratifiedKFold
 
+# e.g. 2 000 gene-expression levels measured on 200 tissue samples, and a tumour label unrelated to them
 n, d = 200, 2000
 X_noise = rng.normal(size=(n, d))                 # pure noise …
 y_noise = rng.integers(0, 2, n)                   # … and labels unrelated to it
@@ -1202,6 +1256,13 @@ The two numbers are worth seeing as two *distributions*, because the point is no
 the leaky mean is too high but that **every single one** of its 20 fold scores is far above
 chance: nothing in the leaky protocol's own output would warn you. The honest protocol sits
 on the chance line, exactly where a model trained on noise belongs.
+
+> **Real-life example.** The demonstration mirrors a real episode. Early gene-expression
+> studies measured thousands of genes on a few dozen tumour samples and reported prediction
+> rules built from a handful of genes with an error rate near zero. Ambroise & McLachlan
+> (2002) pointed out that the genes had been selected on all samples, outside the
+> cross-validation; with the selection repeated inside every fold, the cross-validated error
+> on two published data sets was no longer zero.
 
 ```python
 fig, ax = plt.subplots(figsize=(9.5, 4.4))
@@ -1242,6 +1303,13 @@ and evaluate them empirically on every new dataset, why "which model is best?" h
 context-free answer, and why understanding the assumptions of each method matters more than
 memorising its API. Domingos (2012) is a wonderful essay on this and eleven other lessons.
 
+> **Real-life example.** On tables of customer, loan or insurance records, ensembles of
+> decision trees (notebook 10) are usually the strongest models: the columns have different
+> meanings and units, and their effects often come as thresholds. On photographs,
+> convolutional neural networks (a deep-learning method) win, because they assume that a
+> pattern — an eye, a wheel — means the same wherever it appears in the image. Swap the two
+> kinds of data and each loses its edge.
+
 A quick illustration: a linear model and a nearest-neighbour model on two datasets whose
 structure favours one or the other. The first dataset has a *linear* Bayes boundary
 ($y$ depends on the sign of $\mathbf{w}^\top\mathbf{x}$ plus noise), the second is the
@@ -1256,6 +1324,7 @@ def make_linear_data(n, d, noise=0.3, rng=rng):
     Returns X of shape (n, d) with standard-normal features, and 0/1 labels y = [x.w / ||w|| + noise > 0]
     for a random direction w.
     """
+    # e.g. d standardised attributes per loan applicant; yl = 1 (repaid) if a weighted score plus chance is > 0
     Xl = rng.normal(size=(n, d))
     w = rng.normal(size=d)
     # dividing by ||w|| makes x.w the coordinate along a unit vector, so `noise` is on the same scale for any d
@@ -1264,6 +1333,7 @@ def make_linear_data(n, d, noise=0.3, rng=rng):
 
 datasets = {
     "linear boundary (favours linear models)": make_linear_data(300, 2),
+    # e.g. two lab values per patient, with the healthy and the sick forming interleaved, curved bands
     # make_moons returns (X, y): 300 points on two interleaving half-circles, with Gaussian noise of std 0.25
     "two moons (favours local models)": make_moons(n_samples=300, noise=0.25, random_state=RANDOM_STATE),
 }
@@ -1479,8 +1549,10 @@ the number of configurations tried.
 - Varma, S., & Simon, R. (2006). Bias in error estimation when using cross-validation for model selection. *BMC Bioinformatics*, 7, 91. — Motivates nested cross-validation.
 - Kaufman, S., Rosset, S., Perlich, C., & Stitelman, O. (2012). Leakage in data mining: formulation, detection, and avoidance. *ACM Transactions on Knowledge Discovery from Data*, 6(4), 1–21.
 - Kapoor, S., & Narayanan, A. (2023). Leakage and the reproducibility crisis in machine-learning-based science. *Patterns*, 4(9). — A taxonomy of leakage with a survey of affected fields.
+- Ambroise, C., & McLachlan, G. J. (2002). Selection bias in gene extraction on the basis of microarray gene-expression data. *PNAS*, 99(10), 6562–6566. — Genes selected outside the cross-validation loop: the leak of section 7.1 in published cancer studies.
 - Wolpert, D. H. (1996). The lack of a priori distinctions between learning algorithms. *Neural Computation*, 8(7), 1341–1390. — The no-free-lunch theorem for supervised learning.
 - Domingos, P. (2012). A few useful things to know about machine learning. *Communications of the ACM*, 55(10), 78–87. — Twelve pages of hard-won wisdom; read it now and again in a year.
+- Lazer, D., Kennedy, R., King, G., & Vespignani, A. (2014). The parable of Google Flu: traps in big data analysis. *Science*, 343(6176), 1203–1205. — Google Flu Trends as a case study in overfitting (section 2).
 - Belkin, M., Hsu, D., Ma, S., & Mandal, S. (2019). Reconciling modern machine-learning practice and the classical bias–variance trade-off. *PNAS*, 116(32), 15849–15854. — Double descent.
 - Nakkiran, P., Kaplun, G., Bansal, Y., Yang, T., Barak, B., & Sutskever, I. (2020). Deep double descent: where bigger models and more data hurt. *ICLR 2020*.
 - Breiman, L., Friedman, J. H., Olshen, R. A., & Stone, C. J. (1984). *Classification and Regression Trees*. Wadsworth. — Introduces the one-standard-error rule (chapter 3).

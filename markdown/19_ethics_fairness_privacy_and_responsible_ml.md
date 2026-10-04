@@ -122,6 +122,15 @@ tool changes the behaviour of the people using it), and the **solutionism trap**
 (assuming the answer is a better model rather than, sometimes, no model). Keep these in
 mind as we compute numbers: the numbers are indispensable, and they are not the answer.
 
+> **Real-life examples.**
+> - *Portability trap:* a credit model audited for fairness in Germany is sold to a bank in the
+>   United States. The protected groups, their base rates and the legal tests for
+>   discrimination all differ there, so the audit does not travel with the model.
+> - *Ripple-effect trap:* a pretrial risk score is introduced to help judges release more
+>   low-risk defendants. If judges follow its "high risk" flags but overrule its "low risk"
+>   ones, detention can rise instead of fall — an effect no evaluation of the model alone
+>   would reveal.
+
 ## 2. Where bias enters the pipeline
 
 Suresh & Guttag (2021) give a useful map of *where* in the life cycle things go wrong:
@@ -822,6 +831,12 @@ changed. In the loan data, income is a descendant of group in the generating pro
 a counterfactually fair model would have to discount the part of the income gap that is
 *caused* by group membership — a judgement that requires a causal graph, not just data.
 
+> **Real-life example.** Individual fairness in university admissions: two applicants have the
+> same grade average, one from a school known for strict marking and one from a school known
+> for generous marking. Are they "similar"? If the similarity metric compares raw grades, the
+> two must get the same decision; if it compares each grade with what is typical at that
+> school, they may get different ones. Choosing the metric *is* the fairness judgement.
+
 ## 4. Interventions
 
 Interventions are usually classified by *where* in the pipeline they act:
@@ -1049,6 +1064,13 @@ problems that any standard learner can solve. The latter is implemented as
 `ExponentiatedGradient` in the `fairlearn` library (Bird et al., 2020). `fairlearn` is
 optional in this course; when it is installed, the cell below cross-checks our
 from-scratch metrics with its `MetricFrame`.
+
+> **Real-life example.** An insurer's fraud model picks the claims that an investigator will
+> examine, and the harm is an honest customer treated as a suspect. Instead of training the
+> model freely and adjusting its thresholds afterwards, the insurer can build the requirement
+> into training — "honest claims from younger and older customers are flagged at nearly the
+> same rate", an equal-FPR constraint — so that the learner itself trades accuracy against
+> the gap while it fits.
 
 ```python
 try:                                    # fairlearn is optional: if the import fails we only print a note
@@ -1415,6 +1437,11 @@ any analysis on the released data. And even a $k$-anonymous release leaks if all
 members share the sensitive value (*homogeneity*), or if the attacker has background
 knowledge — which motivated the mathematically stronger notion that follows.
 
+> **Real-life example.** A hospital publishes a 5-anonymous table of discharges with age
+> bracket, postcode, sex and diagnosis. If all five women aged 30–39 from one postcode share
+> the same diagnosis, anyone who knows that a neighbour of that age was treated there learns
+> her diagnosis without ever finding her row — the homogeneity problem in one sentence.
+
 ### 5.3 Differential privacy
 
 Differential privacy (Dwork, McSherry, Nissim & Smith, 2006; Dwork & Roth, 2014) changes
@@ -1433,6 +1460,12 @@ guarantee holds against *any* attacker with *any* side information, and it **com
 running $k$ mechanisms with budgets $`\varepsilon_1, \dots, \varepsilon_k`$ on the same
 data is $`(\sum_i \varepsilon_i)`$-differentially private — the *privacy budget* is spent
 by every query and never recovered.
+
+> **Real-life example.** A company publishes the average salary of its 40-person research
+> department every quarter. When one engineer joins and nothing else changes, two consecutive
+> releases give her salary away exactly (41 × the new average − 40 × the old one). With
+> differential privacy each release carries noise calibrated so that it would look almost the
+> same whatever any one employee earned, and the subtraction yields mostly noise.
 
 The workhorse is the **Laplace mechanism**. For a numeric query $f(D)$ with
 **sensitivity** $`\Delta f = \max_{D, D'} |f(D) - f(D')|`$ (the most one record can move the
@@ -1533,6 +1566,11 @@ and declare "member" if it is below a threshold. The attack's advantage is bound
 generalisation gap, which makes *overfitting a privacy problem*, not just an accuracy
 problem. Let us attack two random forests trained on 300 hand-written digits: one with
 fully grown trees, one regularised.
+
+> **Real-life example.** Digits are harmless; membership often is not. If a debt-counselling
+> service trains a model on its clients' case files, an attacker who can show that a
+> particular person's record was in the training set has learned that this person sought help
+> with debt — although the service never published a list of its clients.
 
 ```python
 from sklearn.datasets import load_digits
@@ -1675,6 +1713,12 @@ still leak training data, so federated systems combine averaging with differenti
 privacy and secure aggregation. It also brings new fairness questions (clients with more
 data dominate the average) and new failure modes (malicious clients).
 
+> **Real-life example.** A smartphone keyboard that suggests the next word learns from what its
+> users type, yet the messages themselves should never leave the phones. With federated
+> learning each phone improves a copy of the model on its own recent typing, sends back only
+> the change in the weights, and the server averages the changes from many thousands of phones
+> into the next version of the shared model.
+
 ## 6. Robustness and safety
 
 ### 6.1 Adversarial examples
@@ -1797,6 +1841,11 @@ research area; for deployed systems the practical questions are *who* could mani
 the inputs, *what* they gain, and whether the system falls back to a human when inputs
 look unusual.
 
+> **Real-life example.** Eykholt et al. (2018) attached a few black-and-white stickers — the
+> kind of marks that pass for graffiti — to a real stop sign, and a road-sign classifier read
+> it as a "Speed Limit 45" sign. A physical perturbation need not be invisible, only
+> inconspicuous, and a car that relied on that classifier alone might not stop.
+
 ### 6.2 Distribution shift, uncertainty and abstention
 
 Adversaries are a worst case of a general problem: the deployment distribution differs
@@ -1806,6 +1855,12 @@ right about inputs unlike anything it has seen — but it can *know* that it doe
 confidence is low and hand the case to a human; the trade-off is between *coverage* (the
 fraction of cases decided automatically) and accuracy on the covered cases. The maximum
 predicted probability is a crude but surprisingly useful confidence signal.
+
+> **Real-life example.** Banks read the handwritten amounts on cheques automatically — the same
+> task as these digits, at industrial scale. A processing centre lets the reader post only the
+> cheques it reads with very high confidence and routes the rest to a clerk: coverage is the
+> share of cheques nobody has to look at, and the accuracy on the covered cheques must meet the
+> bank's tolerance for wrongly posted amounts.
 
 ```python
 proba = clf.predict_proba(X_te_d)                                   # (n_test, 10): one probability per digit
@@ -2080,6 +2135,7 @@ applicants to collect unbiased outcomes.
 - Yeom, S., Giacomelli, I., Fredrikson, M., & Jha, S. (2018). Privacy risk in machine learning: analyzing the connection to overfitting. *Proceedings of IEEE CSF 2018*. — The loss-threshold attack of section 5.4 and its link to the generalisation gap.
 - McMahan, H. B., Moore, E., Ramage, D., Hampson, S., & Agüera y Arcas, B. (2017). Communication-efficient learning of deep networks from decentralized data. *Proceedings of AISTATS 2017*. — Federated averaging.
 - Szegedy, C., et al. (2014). Intriguing properties of neural networks. *ICLR 2014*; and Goodfellow, I. J., Shlens, J., & Szegedy, C. (2015). Explaining and harnessing adversarial examples. *ICLR 2015*. — Adversarial examples and FGSM.
+- Eykholt, K., Evtimov, I., Fernandes, E., Li, B., Rahmati, A., Xiao, C., Prakash, A., Kohno, T., & Song, D. (2018). Robust physical-world attacks on deep learning visual classification. *Proceedings of CVPR 2018*. — Stickers that make a stop sign read as a speed-limit sign (section 6.1).
 - Geifman, Y., & El-Yaniv, R. (2017). Selective classification for deep neural networks. *Advances in NeurIPS 30*. — Abstention with a coverage–accuracy trade-off (section 6.2).
 - Mitchell, M., et al. (2019). Model cards for model reporting. *Proceedings of FAT\* 2019*, 220–229; and Gebru, T., et al. (2021). Datasheets for datasets. *Communications of the ACM*, 64(12), 86–92.
 - Wachter, S., Mittelstadt, B., & Floridi, L. (2017). Why a right to explanation of automated decision-making does not exist in the General Data Protection Regulation. *International Data Privacy Law*, 7(2), 76–99.

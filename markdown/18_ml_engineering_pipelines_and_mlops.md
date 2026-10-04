@@ -154,6 +154,12 @@ and cannot do. Amershi et al. (2019), who observed software teams at Microsoft b
 features, describe the process as highly iterative with feedback from every stage to every
 earlier one.
 
+> **Real-life example.** A food-delivery app predicts delivery times. Monitoring shows the
+> estimates are far too short on rainy evenings and football match days, so weather and an
+> events calendar become new features. Complaints show that being ten minutes late costs far
+> more goodwill than being ten minutes early, so the retrained model punishes under-estimates
+> more than over-estimates: monitoring has changed the problem definition itself.
+
 ```python
 # (label of the box, notebooks that cover that stage); "\n" inside a label starts a new line in the box
 stages = [
@@ -256,6 +262,16 @@ accumulates. The ones you will meet first:
 - **Feedback loops.** The model influences the data it will be retrained on (a retention
   campaign changes who churns). Direct loops are bad; *hidden* loops through two models in the
   same product are worse.
+
+> **Real-life examples.**
+> - **CACE.** A property portal drops "number of rooms" from its house-price model because the
+>   field is often empty. After retraining, the weights of living area and number of bathrooms,
+>   which carried part of the same information, change as well, so the predicted price of
+>   almost every flat moves, not only of those whose room count was missing.
+> - **Undeclared consumers.** A card issuer's fraud model writes a score between 0 and 1 to a
+>   table, and the payments team quietly blocks every transaction scored above 0.9. A retrained
+>   model ranks fraud better but gives less extreme scores, so the rule now blocks far fewer
+>   fraudulent payments — although the model's ROC-AUC went up.
 
 > **Key idea.** Debt is not the cost of doing something; it is the interest you pay later
 > because of how you did it. Every shortcut in this notebook's subject area — a feature
@@ -629,6 +645,12 @@ Sandve et al. (2013) and Wilson et al. (2014) give the wider "rules for reproduc
 version of the same list, and both make the point that the cheapest step is to record
 *everything automatically*, because anything that relies on discipline eventually fails.
 
+> **Real-life example.** A car insurer receives a complaint about a premium its pricing model
+> quoted 18 months ago and must show how that model was built. If the training extract was
+> `policies.csv`, overwritten every night, and scikit-learn has since been upgraded (version
+> 0.22, for instance, changed the default number of trees in a random forest from 10 to 100),
+> nobody can rebuild the model or say which data it learned from.
+
 ```python
 def file_sha256(path: Path, chunk: int = 1 << 20) -> str:
     """Hash a file's bytes — this is what DVC and git-lfs track, and it survives copying.
@@ -919,6 +941,12 @@ say all of this six months later, with a run id and a data hash attached.
 > which criterion won and why, because that decision is the one people will question in six
 > months.
 
+> **Real-life example.** Netflix paid its 1 million dollar Prize in 2009 to an ensemble of many
+> models that cut the rating-prediction error of its own recommender by 10 %. It had already put
+> two simpler methods from the competition into production, but never the winning ensemble: the
+> extra accuracy, its engineers wrote, did not justify the engineering effort of running it in
+> production (Amatriain & Basilico, 2012).
+
 ```py
 # The same idea with MLflow, once you have a tracking server:
 import mlflow
@@ -942,6 +970,12 @@ the *object graph* of the fitted pipeline. Two consequences you must internalise
 > restricted storage, access control, integrity checks, and — in a real registry — signatures.
 > `skops` exists precisely to serialise scikit-learn models without arbitrary code execution,
 > and ONNX exports a *computational graph* that a runtime without Python can execute.
+
+> **Real-life example.** To save a day's work, an analyst downloads a "pre-trained sentiment
+> model" saved as a `.pkl` file from a public forum. `joblib.load` rebuilds the object and, on
+> the way, runs a command hidden in the file that uploads the laptop's cloud credentials, before
+> the model is even returned. This is why public model hubs scan uploaded pickle files and push
+> formats that can hold numbers but not code.
 
 > **Warning — version coupling.** The pickle stores references to classes by module path, not
 > the code itself. Load it with a different scikit-learn version and you may get a warning, a
@@ -1990,6 +2024,11 @@ Almost none of that time is the dot product. It is building a one-row DataFrame,
 and prefer batching over micro-optimising. Report the *tail* (p95/p99), not the mean — the
 mean is what your users never experience.
 
+> **Real-life example.** An online shop's product page waits for the recommendation model and
+> about 30 other services, called in parallel, so it is as slow as the slowest of them. If each
+> service is slow on just 1 % of calls, about one page view in four (1 − 0.99³⁰ ≈ 0.26) hits at
+> least one slow call: the services' excellent mean latencies say nothing about that.
+
 ### 6.5 Training–serving skew
 
 The most expensive bug in applied ML has no traceback: the features computed at serving time
@@ -2002,6 +2041,12 @@ differ from those computed at training time. Sources, in rough order of frequenc
 | Different defaults for missing values | training imputes the median, the service sends 0 | the pipeline imputes; the service never does |
 | Time travel in training data | a feature that was not yet known at decision time | point-in-time-correct joins; a feature store |
 | Stale features | the service reads a nightly table while training used live data | monitor feature freshness; log served features |
+
+> **Real-life example.** Time travel (row four) is leakage in disguise. A hospital trains a
+> model to predict at admission which patients will need intensive care, from a records table
+> that also holds the diagnosis codes entered at discharge. Offline the model looks superb,
+> because those codes describe what happened during the stay; at admission they do not exist
+> yet, so in production the feature is empty and the model is far worse than its test score.
 
 Row two is the classic. Below, a "serving implementation" that scales each incoming batch with
 its own statistics — an easy mistake, and invisible until the batch mix changes.
@@ -2093,6 +2138,16 @@ training data were drawn from, and $P'$ the distribution the model meets in prod
 The last one is the most common in practice and the only one that a schema check catches
 immediately — which is why section 5.1 comes before this one.
 
+> **Real-life examples.**
+> - **Prior shift.** A car plant's camera model flags faulty welds. A bad delivery of welding
+>   wire raises the defect rate from 2 % to 8 % for a month; a faulty weld looks just as it did
+>   before, so the model ranks welds as well as ever (same ROC-AUC), but its probabilities were
+>   calibrated to a 2 % base rate and are now too low for anything that reads them as chances.
+> - **Concept drift.** In March 2020 supermarkets' demand forecasters saw ordinary inputs —
+>   weekday, price, promotions, weather — while panic buying sent sales of toilet paper, flour
+>   and pasta far above anything in the training data. The link between those inputs and demand
+>   had changed, and nothing in the inputs showed it; only the forecast errors did.
+
 ### 7.2 PSI and KS from scratch
 
 The **population stability index** compares a reference distribution with a current one by
@@ -2109,6 +2164,12 @@ so it is non-negative and zero only when the two histograms agree. Credit-scorin
 investigate" and $`> 0.25`$ as "significant shift". Those cut-offs are conventions, not theorems:
 they depend on the number of bins and the sample size, so calibrate them on your own quiet
 periods before you page anyone at 3 a.m.
+
+> **Real-life example.** Every month a bank's credit-risk team compares the scores of new
+> applicants with the sample its scorecard was built on, binned at that sample's deciles (10 %
+> per bin). A partnership with a price-comparison website brings in younger applicants with thin
+> credit files: if the two lowest bins now hold 20 % of applicants each and the other eight 7.5 %
+> each, PSI ≈ 0.20 ("moderate, investigate"), long before any of the new loans could default.
 
 The **two-sample Kolmogorov–Smirnov statistic** is the other standard tool,
 
@@ -2529,6 +2590,16 @@ then deploy carefully.
 - **Rollback.** Keeping `churn_v1` loadable is not sentimentality: the ability to return to the
   previous version in one command is what makes the other three safe.
 
+> **Real-life examples.**
+> - **Shadow.** An e-mail provider runs a new spam filter in shadow for a week: both filters
+>   score every incoming message, but only the old one decides where it lands. The team counts
+>   the messages on which the two disagree, reads a sample of them to see which filter was right,
+>   and checks that the new one keeps up with the Monday-morning peak.
+> - **Canary.** A ride-hailing company sends 1 % of ride requests in one city to a new pricing
+>   model, then 5 %, then 50 %. An automatic check compares the share of riders who cancel after
+>   seeing the price with the traffic still on the old model, and switches back at the first
+>   clear regression.
+
 > **Warning — feedback loops.** Our churn model triggers retention calls. Called customers
 > churn less, so next quarter's training labels are *caused in part by the model's own
 > predictions*. Naive retraining then learns "customers like these do not churn", exactly
@@ -2545,6 +2616,11 @@ was measured separately. Gebru et al. (2021) proposed the analogous **datasheet 
 Notebook 19 (*ethics, fairness, privacy and responsible ML*) treats both as instruments of
 accountability; here we simply generate one from the metadata we already have, so that it
 cannot drift away from the model it describes.
+
+> **Real-life example.** The Adult census-income data, a standard benchmark in fairness research,
+> were extracted from the 1994 US Census database. A datasheet records this under *collection
+> process*, and a reader sees at once that the label "income above 50 000 dollars" is in 1994
+> dollars, so a model trained on it says little about who earns that much today.
 
 ```python
 # disaggregated evaluation: v2's metrics on each slice of the test set (each contract type, each region)
@@ -2672,6 +2748,11 @@ practice**:
 
 Everything so far fits in memory. Three cheap moves buy an order of magnitude before you need a
 cluster.
+
+> **Real-life example.** A grid operator with smart meters in a million homes receives a reading
+> per meter every 15 minutes: 96 million rows a day, several gigabytes of CSV, almost 3 billion
+> rows a month. A month does not fit in a laptop's memory as a DataFrame, but a job that reads
+> one day at a time from Parquet and keeps running totals per household only ever holds one day.
 
 ```python
 csv_bytes = cp.DATA_PATH.stat().st_size          # size of the CSV file on disk, in bytes
@@ -2928,6 +3009,7 @@ label delay — which is an argument for buying labels faster, not for a fancier
 ### Documentation and online resources
 
 - Google, *Rules of Machine Learning* (M. Zinkevich) — https://developers.google.com/machine-learning/guides/rules-of-ml — 43 rules of thumb from Google engineers; the first phase ("before machine learning" and "your first pipeline") is about exactly this notebook.
+- Netflix Technology Blog, *Netflix recommendations: beyond the 5 stars (part 1)* (X. Amatriain & J. Basilico, 2012) — https://netflixtechblog.com/netflix-recommendations-beyond-the-5-stars-part-1-55838468f429 — Why the winning Netflix Prize ensemble was never put into production (section 3.3).
 - scikit-learn, *Model persistence* (pickle, joblib, skops, ONNX and their security implications) — https://scikit-learn.org/stable/model_persistence.html
 - MLflow — https://mlflow.org · Weights & Biases — https://docs.wandb.ai · DVC — https://dvc.org/doc — Tracking, artefacts and data versioning.
 - pytest — https://docs.pytest.org · pandera — https://pandera.readthedocs.io · Great Expectations — https://docs.greatexpectations.io — Testing and data validation.

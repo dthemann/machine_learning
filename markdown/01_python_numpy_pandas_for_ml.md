@@ -80,6 +80,12 @@ takes a second or a minute. Let us measure it. We time with `time.perf_counter` 
 best of several runs, which is more robust than a single measurement (the first call often
 pays a one-off warm-up cost).
 
+> **Real-life example.** A weather service recomputes the "feels-like" temperature for every
+> point of its forecast grid — millions of values — each time a new model run arrives. As a
+> Python loop over the points the update takes minutes; as one formula applied to the whole
+> temperature, humidity and wind arrays it takes seconds, so the app shows fresh numbers as
+> soon as the run is in.
+
 ```python
 def time_ms(fn, repeats=5):
     """Best-of-`repeats` wall-clock time of fn() in milliseconds.
@@ -116,9 +122,9 @@ print(f"NumPy  np.sum(arr * arr)  {t_np:8.2f} ms   ({t_loop / t_np:5.0f}x faster
 ```
 
 ```text
-Python for-loop              19.37 ms
-generator expression         25.40 ms
-NumPy  np.sum(arr * arr)      1.03 ms   (   19x faster than the loop)
+Python for-loop              16.54 ms
+generator expression         21.21 ms
+NumPy  np.sum(arr * arr)      1.13 ms   (   15x faster than the loop)
 ```
 
 The exact numbers depend on your machine, but the gap between the Python loop and the
@@ -242,6 +248,12 @@ transposed strides: (8, 32) -> same buffer, no copy: True
 > `np.allclose(A, B)` (default tolerances `rtol=1e-5`, `atol=1e-8`), as we do throughout the
 > course whenever we check a from-scratch implementation against a library.
 
+> **Real-life example.** A web shop that stores order times as Unix timestamps (about
+> 1.7 billion seconds since 1970) in `float32` silently rounds them to multiples of 128 seconds,
+> so two orders placed a minute apart can get the same time stamp; `int64` keeps them exact.
+> For 100 million thermostat readings such as 21.4 °C, on the other hand, `float32` halves the
+> memory at no real cost, because the sensor is not accurate to seven digits anyway.
+
 ### 1.2 Memory layout
 
 The second half of the cell above shows the memory layout. An array's data live in one
@@ -253,6 +265,12 @@ to move one step along each axis — 32 bytes to the next row, 8 to the next col
 striding down a column skips over whole rows. NumPy handles all of this for you, but it
 explains why transposes are free (`X.T` just swaps the strides — no data are copied) and
 why some operations are faster along one axis than the other.
+
+> **Real-life example.** A wind farm logs each turbine's power output once a second and stores
+> one row per turbine with 86 400 columns per day. In C order a turbine's whole day is one
+> contiguous block, so per-turbine statistics stream through memory, whereas the snapshot
+> "all turbines at 14:00" picks one number every 691 200 bytes (86 400 × 8). If snapshots are
+> the usual question, store the data the other way round, with time steps as rows.
 
 The picture below makes the idea concrete. The same 3 × 4 matrix of values is shown twice;
 each cell is coloured and labelled by the **position its value occupies in the flat memory
@@ -342,11 +360,23 @@ exemplar notebooks write `x[:, None]` before passing a 1-D array to scikit-learn
 the most common shape bug; the broadcasting section shows how it can silently produce an
 `(n, n)` matrix.
 
+> **Real-life example.** To predict the rent of 500 flats from their floor area alone, `area`
+> is a 1-D array of 500 numbers, but scikit-learn wants a table with one row per flat and one
+> column per feature, so you pass `area[:, None]` with shape `(500, 1)`; the rents stay a plain
+> vector of shape `(500,)`.
+
 ### 2.2 Indexing: slices, boolean masks, fancy indexing
 
 NumPy offers three kinds of indexing, and they differ in an important way: **basic slicing
 returns a view** (a window onto the same memory), whereas **boolean and integer-array
 ("fancy") indexing return copies**.
+
+> **Real-life examples.**
+> - A hospital keeps one row per patient with the systolic blood pressure in the first column:
+>   `X[X[:, 0] > 140]` (a boolean mask, as in `X[mask]` below) returns the patients above
+>   140 mmHg, who get a follow-up appointment.
+> - A list of row numbers (fancy indexing, as in `X[[3, 0]]` below) is how a train/test split
+>   takes its rows: `X[test_idx]`, with `test_idx` drawn by the shuffling of section 5.
 
 ```python
 X = np.arange(20).reshape(4, 5)          # the numbers 0..19 as a 4 x 5 matrix
@@ -396,6 +426,11 @@ argmax / argsort -> 4 [1 2 0]
 A view shares memory with its parent: writing to it writes to the parent. This is a feature
 (slicing a huge array costs nothing) and a trap (modifying a "sub-array" changes the
 original). When in doubt, ask `np.shares_memory` or call `.copy()`.
+
+> **Real-life example.** A lab loads a year of hourly temperature readings into `temps` and
+> takes `week = temps[:168]` to clean the first week, setting impossible values above 60 °C
+> to `NaN`. Because the slice is a view, the raw array `temps` has been changed as well — fine
+> if intended, a silently altered raw record if not; `temps[:168].copy()` leaves it intact.
 
 ```python
 a = np.arange(10)       # [0 1 2 ... 9]
@@ -490,7 +525,13 @@ result has the same shape as the input with axis $k$ removed. For a feature matr
 statistic, shape `(d,)`), and `axis=1` runs across the columns and produces one number per
 row (shape `(n,)`). The mnemonic: *the axis you name is the one that disappears.*
 
+> **Real-life example.** A school stores marks with one row per pupil and one column per
+> subject. `marks.mean(axis=0)` gives the class average in each subject (one number per
+> subject, to compare subjects); `marks.mean(axis=1)` gives each pupil's average over all
+> subjects (one number per pupil, for the report card).
+
 ```python
+# e.g. standardised marks of 6 pupils (rows) in 3 subjects (columns)
 X = rng.normal(size=(6, 3))       # 6 samples (rows) x 3 features (columns) of standard-normal random numbers
 print("X.shape           ", X.shape)
 # with no axis, .mean() averages every element; np.round(x, 3) / x.round(3) round to 3 decimals
@@ -516,6 +557,7 @@ naming `axis=1` collapses the *columns* and leaves one number per row. The arrow
 the axis that disappears.
 
 ```python
+# e.g. points scored by 4 basketball players (rows) in 3 games (columns)
 M = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
 grey, blue, orange = "0.9", PALETTE[0], PALETTE[1]
 
@@ -576,6 +618,11 @@ So `(n, d)` and `(d,)` are compatible: `(d,)` is padded to `(1, d)` and stretche
 `(n, d)`. `(n, d)` and `(n,)` are **not** compatible — `(n,)` is padded to `(1, n)`, and
 `n ≠ d`. To subtract a per-row quantity you must give it shape `(n, 1)` with `[:, None]`.
 
+> **Real-life example.** A chain of 50 shops keeps a year of daily sales in an array of shape
+> `(365, 50)`. Dividing by the shops' floor areas, shape `(50,)`, gives sales per square metre
+> for every day and shop in one line; subtracting each day's chain-wide average, shape
+> `(365,)`, needs `[:, None]` first — otherwise NumPy raises an error, because 365 ≠ 50.
+
 **Example 1 — standardising columns.** Subtract each column's mean and divide by its
 standard deviation. `X.mean(axis=0)` has shape `(d,)`, which broadcasts against `(n, d)`.
 
@@ -585,6 +632,7 @@ standard deviation. `X.mean(axis=0)` has shape `(d,)`, which broadcasts against 
 ```python
 # Example 1: standardise columns
 # rng.normal accepts one loc (mean) and one scale (standard deviation) per column
+# e.g. factory sensor readings: motor speed (~10 rev/s), power draw (~200 W), coolant temperature (~-5 °C)
 X = rng.normal(loc=[10, 200, -5], scale=[1, 50, 0.1], size=(1000, 3))   # three features on wildly different scales
 # subtract each column's mean, then divide by each column's standard deviation
 X_std = (X - X.mean(axis=0)) / X.std(axis=0)         # (1000, 3) - (3,) -> (1000, 3)
@@ -593,8 +641,8 @@ print("column means after standardising:", X_std.mean(axis=0).round(10))
 print("column stds  after standardising:", X_std.std(axis=0).round(10))
 
 # Example 2: outer product and pairwise differences
-a = np.array([1, 2, 3])
-b = np.array([10, 20, 30, 40])
+a = np.array([1, 2, 3])                  # e.g. stays of 1, 2 or 3 nights
+b = np.array([10, 20, 30, 40])           # e.g. nightly fees of four campsites, in euros
 table = a[:, None] * b[None, :]          # (3, 1) * (1, 4) -> (3, 4): table[i, j] = a[i] * b[j]
 print("\nouter product a[:, None] * b[None, :]:\n", table)
 print("a[:, None] - a[None, :] gives all pairwise differences:\n", a[:, None] - a[None, :])
@@ -662,9 +710,15 @@ $`D_{ij} = \|\mathbf{x}_i - \mathbf{y}_j\|_2`$. Insert axes so that the shapes a
 take the root. This is exactly the computation inside $k$-nearest neighbours (notebook 8)
 and $k$-means (notebook 13).
 
+> **Real-life example.** A music-streaming service describes every song by a few audio features
+> (tempo, energy, loudness, …). The distance matrix between the songs a listener has played
+> and a catalogue of candidates is what a "more like this" feature scans: in each row, the
+> candidates with the smallest distances become the suggestions.
+
 ```python
 from scipy.spatial.distance import cdist     # SciPy's optimised pairwise-distance function
 
+# e.g. 500 songs a listener has played and 300 candidate songs, each with 5 standardised audio features
 X = rng.normal(size=(500, 5))    # 500 points in 5 dimensions
 Y = rng.normal(size=(300, 5))    # 300 more points in the same 5 dimensions
 
@@ -711,8 +765,8 @@ print(f"the broadcast version allocates an (n, m, d) = "
 
 ```text
 all four agree: True
-double Python loop                        511.7 ms
-broadcasting (n, m, d) intermediate         5.2 ms
+double Python loop                        410.2 ms
+broadcasting (n, m, d) intermediate         4.7 ms
 algebraic identity (one matrix product)      0.4 ms
 scipy.spatial.distance.cdist                0.4 ms
 the broadcast version allocates an (n, m, d) = 6.0 MB intermediate; the other three do not
@@ -763,6 +817,7 @@ for an algebraic identity or a library routine.
 > predictions before computing errors.
 
 ```python
+# e.g. actual and predicted delivery times, in days, of three parcels
 y_true = np.array([1.0, 2.0, 3.0])                # shape (3,)
 y_pred = np.array([[1.1], [2.1], [2.9]])          # shape (3, 1) — a common output shape
 # (3, 1) - (3,) broadcasts to (3, 3): every prediction minus every target
@@ -803,6 +858,12 @@ error in the input can be amplified in the output; as a rule of thumb you lose
 $`\log_{10}(\text{cond})`$ significant digits. The Hilbert matrix $`H_{ij} = 1/(i+j-1)`$ is a
 classic ill-conditioned example: with a condition number around $10^{13}$ we can hope for
 about three correct digits, and the inverse does markedly worse than `solve`.
+
+> **Real-life example.** In a house-price data set, living area and total floor area differ by
+> only a few square metres for most houses. Put both into a least-squares fit and the system
+> the solver faces becomes nearly singular: its condition number explodes, and the two
+> coefficients can swing to large values of opposite sign that change with every new batch of
+> sales — the numerical face of the multicollinearity discussed in notebook 6.
 
 ```python
 from scipy.linalg import hilbert     # hilbert(n) builds the n x n matrix with H[i, j] = 1 / (i + j + 1)
@@ -883,10 +944,16 @@ intercept) and second column is $x$; then the problem is $`\min_{\mathbf{w}} \|\
 equations** $`\mathbf{X}^\top\mathbf{X}\,\mathbf{w} = \mathbf{X}^\top\mathbf{y}`$ (derived in
 notebook 2, section 2.3, and again in notebook 6). Three ways to compute it:
 
+> **Real-life example.** From 100 taxi receipts you want to recover the tariff: `x` is the
+> distance in kilometres, `y` the fare in euros. The intercept estimates the base fare, the
+> slope the price per kilometre, and the scatter around the line comes from time spent waiting
+> in traffic. The simulated rides below are built that way: 3 € base fare plus 2 € per km.
+
 ```python
 from sklearn.linear_model import LinearRegression
 
 n = 100
+# e.g. 100 taxi rides: x = distance in km, y = fare in euros (3 € base fare + 2 € per km + traffic)
 x = rng.uniform(0, 10, n)                    # 100 x-values drawn uniformly from [0, 10)
 y = 3 + 2 * x + rng.normal(0, 2, n)          # true intercept 3, true slope 2, plus noise with standard deviation 2
 
@@ -928,12 +995,21 @@ is numerically stable, whereas the normal equations square the condition number.
 
 ### 4.3 Norms, SVD and eigen-decomposition
 
+> **Real-life examples.**
+> - A courier in a grid-plan city must go 3 blocks east and 4 blocks south, the vector `v`
+>   below. The straight line is the 2-norm, 5 blocks; the route along the streets is the
+>   1-norm, 7 blocks; the ∞-norm, 4 blocks, is the longer leg alone — what sets the travel
+>   time of a warehouse crane that moves along both axes at once.
+> - The SVD compresses images: keeping the 50 largest singular values of a 1 000 × 1 000
+>   grey-scale photo stores about 100 000 numbers instead of a million, and the picture stays
+>   recognisable.
+
 ```python
-v = np.array([3.0, -4.0])
+v = np.array([3.0, -4.0])                     # e.g. 3 blocks east, 4 blocks south
 # np.linalg.norm(v, ord): default (2) is the Euclidean length, 1 the sum of absolute values, np.inf the largest absolute value
 print(f"||v||_2 = {np.linalg.norm(v):.1f}   ||v||_1 = {np.linalg.norm(v, 1):.1f}   ||v||_inf = {np.linalg.norm(v, np.inf):.1f}")
 
-M = rng.normal(size=(5, 3))
+M = rng.normal(size=(5, 3))                   # e.g. a tiny 5 x 3 image patch, brightness centred on 0
 # singular value decomposition M = U @ diag(s) @ Vt; full_matrices=False returns the compact ("thin") version
 U, s, Vt = np.linalg.svd(M, full_matrices=False)
 # np.diag(s) turns the vector s into a diagonal matrix, so the product rebuilds M
@@ -978,6 +1054,11 @@ initialisation, stochastic gradient descent, random forests. Two rules make it m
    course takes `rng` as an argument); it also uses a better algorithm (PCG64) and has a
    cleaner interface (`integers` instead of `randint`, `normal(loc, scale, size)`, and so on).
 
+> **Real-life example.** A bank's model-validation team re-runs a credit-scoring notebook six
+> months after the model was approved. With the seed fixed in the code they get the same
+> train/test split and the same test score to the last digit; without it, a score that moved
+> slightly could mean a change in code or data, or just a different random split.
+
 ```python
 # np.random.default_rng(seed) creates an independent generator; the same seed always gives the same stream
 rng_a = np.random.default_rng(123)
@@ -1018,7 +1099,13 @@ of train/test splitting. `rng.choice(n, size=n, replace=True)` draws *with* repl
 bootstrap confidence intervals of notebook 2. A first taste: the sampling distribution of
 a mean, estimated by resampling.
 
+> **Real-life example.** A customer-service team has timed the waits of 60 callers and wants a
+> range for the average wait, not just one number, before it publishes a service promise.
+> Waiting times are skewed — most calls are answered quickly, a few wait very long — and the
+> bootstrap gives the range by resampling the 60 measured waits, with no bell-curve formula.
+
 ```python
+# e.g. waiting times in minutes of 60 callers to a hotline
 sample = rng.exponential(scale=10, size=60)          # a skewed sample of size 60 (true mean = 10)
 n_boot = 2000                                        # number of bootstrap resamples
 # one bootstrap resample = len(sample) values drawn *with replacement* from the sample; we keep the mean of each
@@ -1061,8 +1148,8 @@ between two Series **align on the index**, not on position:
 
 ```python
 # a Series is a 1-D array of values with an index (one label per value)
-s1 = pd.Series([1, 2, 3], index=["a", "b", "c"])
-s2 = pd.Series([10, 20, 30], index=["c", "b", "d"])
+s1 = pd.Series([1, 2, 3], index=["a", "b", "c"])     # e.g. January rentals per car-sharing station
+s2 = pd.Series([10, 20, 30], index=["c", "b", "d"])  # e.g. February: station a closed, d opened
 print("s1 + s2 aligns labels (a and d have no partner -> NaN):")
 print(s1 + s2)        # values are matched by index label, not by position
 ```
@@ -1079,6 +1166,12 @@ dtype: float64
 Alignment is silent, which is convenient (joining on keys is automatic) and dangerous (a
 mis-set index turns a valid computation into a column of `NaN`). When you deliberately want
 positional arithmetic, work with `.to_numpy()`.
+
+> **Real-life example.** A car-sharing company keeps monthly rentals per station as Series
+> indexed by station name. Station `a` closed after January, station `d` opened in February,
+> and the February report lists the stations in a different order. Adding the two months
+> matches `b` with `b` and `c` with `c` and gives `NaN` for `a` and `d`, as above; positional
+> addition would have credited rentals to the wrong stations.
 
 ### 6.1 Reading the raw churn data
 
@@ -1565,6 +1658,7 @@ form is a single `.loc` assignment.
 ```python
 import warnings          # standard-library module for raising and catching warnings
 
+# e.g. a: profit of three branches, b: a bonus flag to set where the profit is positive
 toy = pd.DataFrame({"a": [1, -1, 2], "b": [0, 0, 0]})
 with warnings.catch_warnings(record=True) as caught:             # capture the warning so we can print it
     warnings.simplefilter("always")                                # report the warning even if it was shown before
@@ -1592,6 +1686,11 @@ on them was a slow Python loop. pandas 3 uses a proper string dtype (`str`), com
 with `==` and the `.str` accessor work as expected, and missing text is `NaN`. If you still
 meet an `object` column (e.g. from an old pickle), convert it with `.astype("string")` or
 `pd.to_numeric(..., errors="coerce")` for numbers-as-text.
+
+> **Real-life example.** A supplier's price list exported from an old ordering system arrives
+> with the price column as `object`, holding the text `"12.50"`, the number `12.5` and the note
+> `"n/a"` side by side. `pd.to_numeric(prices, errors="coerce")` turns it into a `float64`
+> column with `NaN` for `"n/a"` — and counting those `NaN`s tells you how many prices to chase.
 
 **Copies.** `df2 = df` does *not* copy; both names refer to the same frame. Use
 `df.copy()` when you want an independent object to modify.
@@ -1773,10 +1872,10 @@ plt.show()
 
 ```text
 all methods agree: True
-total_via_iterrows       128.307 ms
-total_via_apply           25.367 ms
-total_vectorised           0.157 ms
-total_numpy                0.054 ms
+total_via_iterrows        87.831 ms
+total_via_apply           20.682 ms
+total_vectorised           0.100 ms
+total_numpy                0.039 ms
 ```
 
 ![Figure 15: Row-by-row iteration costs three orders of magnitude](figures/01_python_numpy_pandas_for_ml/fig-15.png)

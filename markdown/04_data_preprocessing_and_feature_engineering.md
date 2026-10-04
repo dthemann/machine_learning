@@ -73,6 +73,13 @@ two phases `fit` and `transform`, and the contract that keeps evaluation honest 
 > in for the future data the model will meet in production — and the future is not available
 > when we fit.
 
+> **Real-life example.** A hospital's early-warning model standardises heart rate, blood
+> pressure and temperature with the means and standard deviations of last year's patients.
+> When one new patient's readings arrive at 3 a.m., there is no "test-set mean" to compute
+> from a single row: the stored training statistics are all there is, and they are exactly
+> what `transform` uses. An evaluation that lets the test rows shape the statistics rehearses
+> a situation that production never offers.
+
 Violating the contract is the most common form of **data leakage** (notebook 5, section
 7.1): a scaler fitted on all rows "knows" the spread of the test set, an imputer fitted on
 all rows fills test gaps with values computed from other test rows, a feature selector that
@@ -405,6 +412,12 @@ columns define identity*. Here a customer should appear once, so we deduplicate 
 `customer_id`. In other datasets a row is a transaction and repeated identifiers are
 legitimate — decide from the meaning of the data, not from the mechanics.
 
+> **Real-life example.** An online shop's order table has one row per order. The same
+> `customer_id` on twenty rows is legitimate — a loyal customer orders often — but the same
+> `order_id` on two rows means an order was loaded twice, and its revenue would be counted
+> double. In the order table identity is defined by `order_id`; in the shop's customer table
+> it would be `customer_id`.
+
 ```python
 # .duplicated() flags rows identical to an earlier row; on one column it flags repeated values of that column
 print(f"exact duplicate rows: {raw.duplicated().sum()};  duplicated customer_id: {raw['customer_id'].duplicated().sum()}")
@@ -486,6 +499,13 @@ IQR fences: [-0.2, 147.0]  ->  3 rows flagged
 For these customers `total_charges` is consistent with a normal bill (a Fiber customer pays
 about 85–110 a month), so the 999 is an entry error in one cell. We set that cell to `NaN`
 and keep the row.
+
+> **Real-life example.** A parcel carrier logs the delivery time of every parcel. A parcel
+> that took nine days because a snowstorm closed the roads is a genuine outlier: it happened,
+> and a delivery-time model should know that such delays exist. A delivery time of minus two
+> days (the "delivered" scan recorded before the "picked up" scan) is impossible and becomes
+> `NaN`. If the few nine-day parcels dominate a squared-error model, winsorising at the 99th
+> percentile caps them at, say, four days but keeps the rows.
 
 ### 2.5 Types, dates and consistency checks
 
@@ -833,6 +853,13 @@ Box & Cox (1964) choose the exponent $\lambda$ by maximum likelihood ($\lambda =
 $\log x$); Yeo & Johnson (2000) extended the family to zero and negative values, which is why
 it is scikit-learn's default. `PowerTransformer` standardises the result as well.
 
+> **Real-life example.** A household survey records annual incomes: most between 20 000 and
+> 80 000 euros, plus a few millionaires. The millionaires inflate the standard deviation, so
+> `StandardScaler` squeezes all ordinary incomes into a narrow band around zero.
+> `RobustScaler` uses the median and the IQR, which a few millionaires hardly move, so
+> ordinary incomes keep a useful spread; a power transform (close to a log for such data)
+> also pulls the millionaires themselves in.
+
 ```python
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, QuantileTransformer, PowerTransformer
 
@@ -1149,6 +1176,13 @@ $\bar y$ the global mean and $m$ a smoothing constant that pulls rare categories
 global mean. One column, and the model receives directly what it would otherwise have to
 learn from $K$ dummies.
 
+> **Real-life example.** A car insurer's claims model uses the policyholder's postcode —
+> about 8 000 of them, far too many for one-hot columns. Target encoding replaces each
+> postcode by the share of its policyholders who made a claim last year. A village postcode
+> with three policyholders, one of whom claimed, would get 33 % on its own; smoothing pulls
+> it towards the national rate, so one unlucky driver does not make the whole village look
+> dangerous.
+
 The catch is subtle. If we compute $\text{enc}(c)$ on the training rows and then *train the
 model on those same rows*, each row's encoded value contains its own label; for a rare
 category with $`n_c = 1`$ the encoded value *is* a shrunk version of the label. The model
@@ -1283,6 +1317,15 @@ cross-fitted target encoding is usually the best of the three.
   handled for free, at the cost of occasional collisions.
 - **Grouping** — domain hierarchies (postcode → district → region), or `min_frequency`.
 - **Learned embeddings** — a neural network maps each level to a short dense vector (a deep-learning technique, outside the scope of this course).
+
+> **Real-life examples.**
+> - *Frequency encoding:* a card issuer's fraud model replaces each merchant by the number of
+>   card payments it received last year. A merchant seen twice is more suspicious than a
+>   supermarket seen two million times.
+> - *Hashing:* a news site that predicts clicks on adverts meets millions of distinct advert
+>   ids, with thousands of new ones every day. Hashing them into, say, a million columns
+>   needs no stored vocabulary, and tomorrow's adverts are encoded without refitting
+>   anything.
 
 Binary variables (`senior_citizen`, `has_partner`, …) are already numbers and need no
 encoding; keep them as `0/1` columns.
@@ -1629,6 +1672,12 @@ More features are not always better: irrelevant columns add noise that a model m
 column costs memory, time and maintenance. Guyon & Elisseeff (2003) organise the methods in
 three families.
 
+> **Real-life example.** A chip factory logs several hundred sensor readings for every wafer
+> and wants to predict which wafers will fail the final test. Many sensors are nearly
+> constant or duplicate a neighbour. A model built on the twenty that matter is quicker to
+> retrain, easier for the process engineers to check, and keeps working when one of the
+> ignored sensors breaks.
+
 ### 7.1 Filter methods: score each feature on its own
 
 A filter ranks features by a statistic computed *without* a model: `VarianceThreshold`
@@ -1639,6 +1688,12 @@ $I(X; Y) = \sum P(x, y) \log \frac{P(x,y)}{P(x)P(y)}$ (notebook 2), estimated wi
 nearest-neighbour method, detects *any* dependence at the cost of noisier estimates. Filters
 are fast and model-agnostic but blind to redundancy (two copies of a feature score
 identically) and to interactions (two features useless alone but decisive together).
+
+> **Real-life example.** A grid operator wants to flag the hours in which electricity demand
+> will exceed a peak threshold. In a region with both electric heating and air conditioning,
+> peaks come on cold winter evenings and on hot summer afternoons, so the average temperature
+> of peak hours can be close to that of ordinary hours: the ANOVA F-statistic rates
+> temperature as nearly useless, while mutual information detects the U-shaped dependence.
 
 ```python
 # f_classif: the ANOVA F-statistic of each feature against the class; mutual_info_classif: estimated mutual information
@@ -1726,6 +1781,12 @@ convenient, but biased towards features with many possible split points (continu
 high-cardinality ones) and unreliable when features are correlated (Strobl et al., 2007).
 Prefer *permutation importance* (notebook 17) for ranking, and treat impurity importances
 as a rough guide only.
+
+> **Real-life example.** A property portal trains a random forest on house prices and by
+> mistake leaves the seller's randomly assigned customer number among the features. Thousands
+> of distinct numbers offer thousands of split points, so the trees use the column to fit
+> noise and its impurity importance can rank it above genuinely useful features. Permutation
+> importance on held-out listings shows its true value: about zero.
 
 ```python
 # {'C':>7s} right-aligns the text "C" in a field of 7 characters, so it sits above the C column
@@ -1889,6 +1950,7 @@ class, which is precisely what changing the decision threshold would do.
 ```python
 from sklearn.datasets import make_classification       # generates a random synthetic classification problem
 
+# e.g. two blood-test values per patient; class 1 (about 5 %) = has a rare disease
 # 1200 points with 2 features, both informative, and one cluster per class; weights sets the class proportions,
 # class_sep how far apart the classes are, and flip_y=0.01 gives 1 % of the points a random label (label noise)
 X_2d, y_2d = make_classification(n_samples=1200, n_features=2, n_redundant=0, n_informative=2,
@@ -1940,6 +2002,13 @@ lines of NumPy; the `imbalanced-learn` package provides production versions (`SM
 `ADASYN`, `RandomUnderSampler`, …) and a pipeline class that resamples *only the training
 folds*.
 
+> **Real-life example.** A wind-farm operator has sensor summaries of 20 000 normal
+> turbine-days and only 60 days that ended in a gearbox failure. SMOTE invents extra failure
+> days: it takes a recorded failure and one of its most similar recorded failures and places
+> a new point at a random position on the line between the two — a vibration level and an oil
+> temperature in between those of two real breakdowns. Whether such in-between days could
+> really occur is a question for the engineers; the algorithm does not know.
+
 ```python
 from sklearn.datasets import make_moons                # two interleaving half-circles, a classic 2-D toy problem
 from sklearn.neighbors import NearestNeighbors         # finds the nearest rows to a query point (no prediction)
@@ -1972,6 +2041,7 @@ def smote(X_minority, n_new, k=5, rng=rng):
     lam = rng.random((n_new, 1))   # one weight in [0, 1) per new point; (n_new, 1) broadcasts over the d columns
     return X_minority[base] + lam * (X_minority[partner] - X_minority[base])    # a random point on each segment
 
+# e.g. vibration and oil temperature of a wind turbine's gearbox; class 1 = a failure followed
 # noise is the standard deviation of the Gaussian noise added to the points
 X_moons, y_moons = make_moons(n_samples=600, noise=0.25, random_state=RANDOM_STATE)
 keep = (y_moons == 0) | (rng.random(len(y_moons)) < 0.12)         # keep only ~12 % of class 1

@@ -70,12 +70,19 @@ side. The most robust choice is the line that stays **as far as possible from th
 points of both classes**. The distance from the boundary to the closest point is called
 the **margin**, and the SVM is the classifier that maximises it.
 
+> **Real-life example.** A recycling plant separates PET from HDPE bottles on a conveyor belt
+> using two near-infrared readings per bottle. Many lines separate the training bottles, but
+> one that grazes the most unusual PET bottle will send a slightly more unusual one tomorrow
+> into the HDPE bin. The maximum-margin line keeps the largest possible safety distance from
+> both kinds of bottle.
+
 ```python
 from sklearn.datasets import make_blobs        # generates Gaussian clusters ("blobs") of points
 from sklearn.linear_model import Perceptron    # the classic perceptron: stops at the first line that separates the data
 from sklearn.svm import SVC                    # support vector classifier (LIBSVM); kernel= chooses the kernel
 
 # 60 points in two Gaussian clusters around the given centres, each with standard deviation 0.8 (separable)
+# e.g. two near-infrared readings per bottle on a recycling line: PET (class 0) or HDPE (class 1)
 X_sep, y_sep = make_blobs(n_samples=60, centers=[[-1.5, -1.5], [1.5, 1.5]], cluster_std=0.8, random_state=6)
 
 # a hard-margin SVM: a huge C forbids any margin violation (section 2 explains C)
@@ -185,6 +192,11 @@ w, b fitted on the 3 support vectors: [0.645  1.1532] -0.2155
 This sparsity is the source of the name and one of the model's practical strengths: the
 decision function is determined by a (usually small) subset of the data.
 
+> **Real-life example.** On the recycling line of section 1.1, only the few most ambiguous
+> bottles — the PET bottles whose readings come closest to HDPE, and vice versa — fix the
+> boundary. Adding ten thousand more perfectly typical bottles to the training set would not
+> move it at all.
+
 > **History.** The maximum-margin idea goes back to Vapnik and Chervonenkis's work on
 > statistical learning theory in the 1960s–70s; the kernelised "optimal margin classifier"
 > was presented by Boser, Guyon & Vapnik (1992), and the soft-margin "support-vector
@@ -214,6 +226,12 @@ balances the two goals:
 
 - **large $C$<span></span>**: violations are expensive → few violations, narrow margin, wiggly, high-variance boundary (in the limit $C \to \infty$, the hard-margin SVM);
 - **small $C$<span></span>**: violations are cheap → wide margin, many points inside it, smoother, high-bias boundary.
+
+> **Real-life example.** A card issuer separates fraudulent from genuine payments by the amount
+> and the distance from the cardholder's home. A few genuine payments look exactly like fraud
+> (a customer buying a television on holiday abroad). A very large $C$ would narrow and tilt
+> the margin to accommodate them; a moderate $C$ pays some slack for those few cases and keeps
+> a wide, stable margin for the thousands of ordinary ones.
 
 ### 2.2 The SVM as regularised empirical risk minimisation
 
@@ -287,6 +305,11 @@ it, and the projection tames the first, very large steps). Its convergence rate 
 depend on $n$ at all, which made it the standard trainer for linear SVMs on large data.
 We implement the mini-batch version with the projection, keep the bias $b$ unregularised,
 and record the full-data objective after every step so that we can watch it converge.
+
+> **Real-life example.** A news agency tags every incoming article as "business" or not, using
+> the counts of 50 000 vocabulary words as features and an archive of 800 000 labelled
+> articles for training. Pegasos only ever looks at a small random batch of articles per
+> step, and the number of steps it needs does not grow with the size of the archive.
 
 ```python
 class HingeLinearSVM:
@@ -467,6 +490,7 @@ def plot_svm_margin(model, X, y, ax, title):
     ax.legend(loc="upper left", fontsize=8)
 
 # 120 points in two clusters with std 1.1 around nearby centres: they overlap, so no line separates them
+# e.g. standardised amount and distance from home of genuine (0) and fraudulent (1) card payments
 X_ov, y_ov = make_blobs(n_samples=120, centers=[[-1, -1], [1, 1]], cluster_std=1.1, random_state=RANDOM_STATE)
 fig, axes = plt.subplots(1, 4, figsize=(18, 4.3))       # 1 row of 4 panels
 for ax, C_ in zip(axes, [0.01, 0.1, 1, 100]):           # zip pairs each panel with one value of C
@@ -601,6 +625,7 @@ def phi_poly2(X):
     return np.column_stack([np.ones(len(X)), np.sqrt(2) * x1, np.sqrt(2) * x2, x1**2, x2**2, np.sqrt(2) * x1 * x2])
 
 # 200 points on two noisy rings; factor=0.45 is the inner ring's radius relative to the outer one
+# e.g. standardised heart rate and body temperature: normal near the centre (inner ring), abnormal all around
 X_circ, y_circ = make_circles(n_samples=200, noise=0.08, factor=0.45, random_state=RANDOM_STATE)
 # polynomial_kernel(X, ...) = (gamma * x.z + coef0)^degree for every pair of rows of X
 K_kernel = polynomial_kernel(X_circ, degree=2, gamma=1.0, coef0=1.0)     # (x.z + 1)^2, n x n
@@ -665,6 +690,7 @@ substantial noise, so that a perfect fit is not possible and overfitting is visi
 from sklearn.datasets import make_moons     # two interleaving half-moons
 
 # noise=0.3 is the standard deviation of the Gaussian noise added to each point, enough to make the moons overlap
+# e.g. standardised map coordinates of 300 houses near a winding river, label = flooded (1) or not (0)
 X_moon, y_moon = make_moons(n_samples=300, noise=0.3, random_state=RANDOM_STATE)
 gammas, Cs = [0.1, 1, 50], [0.1, 1, 100]
 fig, axes = plt.subplots(len(gammas), len(Cs), figsize=(15, 13))     # 3 x 3 grid: rows = gamma, columns = C
@@ -685,6 +711,12 @@ Read the grid row by row and column by column:
 - **<span></span>$\gamma$ sets the smoothness.** Small $\gamma$ (wide bumps, top row): every support vector influences a large region and the boundary is nearly linear — high bias. Large $\gamma$ (bottom row): each support vector only affects its immediate neighbourhood, and the boundary becomes a collection of islands around individual training points — high variance, memorisation.
 - **<span></span>$C$ sets the tolerance for violations.** Small $C$ (left column): smooth boundaries and many support vectors; large $C$ (right column): the model works hard to classify every training point, which with a large $\gamma$ is pure overfitting.
 - The two interact: a larger $\gamma$ needs a smaller $C$ and vice versa, so the good configurations form a *diagonal ridge* in the $(\gamma, C)$ plane. A grid search over both on logarithmic scales, as recommended in the classic practical guide by Hsu, Chang & Lin (2003), is the standard procedure.
+
+> **Real-life example.** An insurer classifies houses as flooded or not in last year's flood
+> from their map coordinates. With a small $\gamma$ a house's prediction draws on houses a
+> kilometre away and the risk map is smooth, district by district; with a large $\gamma$ only
+> the immediate neighbours count; with a huge $\gamma$ every house is predicted from itself
+> alone, which reproduces last year's map perfectly and says nothing about next year.
 
 ```python
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
@@ -768,6 +800,11 @@ TF-IDF normalisation as it is.
   one-vs-rest ($K$ models). `decision_function_shape="ovr"` (the default) aggregates the
   pairwise votes into a `(n, K)` array so that the API looks like other classifiers.
 
+> **Real-life example.** A bank that ranks loan applicants with an SVM still needs a
+> probability of default for each of them, because the interest rate and the provisions for
+> expected losses are calculated from it. Platt scaling learns how the SVM's signed distance
+> translates into a default rate, without changing the ranking.
+
 ```python
 from sklearn.datasets import load_digits     # 1 797 handwritten digits: 8 x 8 pixels = 64 features, labels 0-9
 
@@ -825,6 +862,12 @@ a few tens of thousands of samples exact kernel SVMs become impractical. The opt
    $`b_j \sim U[0, 2\pi]`$, whose expected inner product is exactly the RBF kernel
    (Bochner's theorem). Both cost $O(nDd)$ and the approximation improves with $D$.
 
+> **Real-life example.** A satellite image of 2 500 × 2 000 pixels already has 5 million rows
+> — one per pixel, with a dozen spectral bands each — to be classified as forest or not. Its
+> exact kernel matrix would need 200 TB of memory, whereas Nyström features from a few
+> hundred landmark pixels plus a linear SVM cost time and memory that grow only linearly
+> with the number of pixels.
+
 The experiment below measures training time and accuracy as $n$ grows on a synthetic
 20-dimensional problem. (Timings on a shared machine are noisy — look at the trend, not
 the exact numbers. We pin the linear-algebra libraries to one thread so that the numbers
@@ -836,6 +879,7 @@ from sklearn.datasets import make_classification     # random classification pro
 from sklearn.kernel_approximation import Nystroem, RBFSampler   # explicit, approximate feature maps for a kernel
 
 # 20 000 rows with 20 features, 10 of which carry the signal
+# e.g. 20 000 pixels of a satellite image with 20 spectral and texture features each, label = forest (1) or not (0)
 X_big, y_big = make_classification(n_samples=20_000, n_features=20, n_informative=10, random_state=RANDOM_STATE)
 X_big = StandardScaler().fit_transform(X_big)        # fit_transform: fit, then transform, in one call
 X_big_test, y_big_test = X_big[16_000:], y_big[16_000:]   # the last 4 000 rows are the test set
@@ -933,9 +977,16 @@ support vectors with non-zero $`\alpha_i`$. $\varepsilon$ therefore controls spa
 wider tube ignores more points. The linear-outside-the-tube loss also makes SVR robust to
 outliers, like the Huber loss of notebook 6.
 
+> **Real-life example.** A greenhouse operator predicts the air temperature an hour ahead from
+> the outside temperature, sunshine and the vent settings. The sensors are only accurate to
+> about ±0.5 °C, so smaller errors are indistinguishable from measurement noise: with
+> $\varepsilon$ set to 0.5 °C the SVR ignores them, and only the hours it misses by more than
+> half a degree become support vectors.
+
 ```python
 from sklearn.svm import SVR            # support vector regression (epsilon-insensitive loss)
 
+# e.g. x = the angle of a rotating shaft (as a fraction of a turn), y = a vibration sensor's reading
 x_r = np.sort(rng.uniform(0, 1, 60))                              # 60 random x in [0, 1), sorted ascending
 y_r = np.sin(2 * np.pi * x_r) + rng.normal(0, 0.25, len(x_r))     # a sine wave plus Gaussian noise with std 0.25
 x_grid = np.linspace(0, 1, 300)[:, None]                          # 300 x positions as a (300, 1) column for predict
@@ -975,6 +1026,12 @@ Replacing it by any kernel matrix gives
 \qquad
 \hat{f}(\mathbf{x}) = \sum_{i=1}^n \alpha_i\, k(\mathbf{x}_i, \mathbf{x}) .
 ```
+
+> **Real-life example.** Rupp et al. (2012) used kernel ridge regression to predict the
+> atomisation energy of small organic molecules from a matrix that encodes their atoms and
+> the distances between them, trained on a few thousand molecules. A prediction then takes a
+> fraction of a second instead of an expensive quantum-chemistry calculation, and at a few
+> thousand training points the closed-form solve is cheap.
 
 Unlike SVR, KRR has a **closed form** (one $n \times n$ linear solve, $O(n^3)$), no
 $\varepsilon$, and it is *dense*: every training point has a non-zero coefficient, so
@@ -1109,6 +1166,12 @@ and of small-data science and engineering problems. The price is the same $O(n^3
 as KRR, which limits exact GPs to a few thousand points (sparse approximations exist;
 Rasmussen & Williams, 2006, ch. 8).
 
+> **Real-life example.** Gaussian-process regression was used in mining long before machine
+> learning, under the name *kriging* (after the South African mining engineer Danie Krige). A
+> mining company measures the gold content of the rock at each borehole; the posterior mean
+> interpolates it between boreholes, and the posterior variance shows where the next
+> borehole would reduce the uncertainty most.
+
 ## 6. Strengths, weaknesses and when to use them
 
 Three related models have been built in this notebook — the linear SVM, the kernel SVM and
@@ -1166,6 +1229,7 @@ and the time to score 1 000 new rows.
 ```python
 # 12 000 rows; class_sep=0.8 moves the classes closer together and flip_y=0.10 gives 10 % of the rows a random label,
 # so many points end up inside the margin
+# e.g. 12 000 machine runs with 20 sensor features each, label = faulty (1) or fine (0)
 X_wall, y_wall = make_classification(n_samples=12_000, n_features=20, n_informative=8,
                                      class_sep=0.8, flip_y=0.10, random_state=RANDOM_STATE)
 X_wall = StandardScaler().fit_transform(X_wall)
@@ -1707,9 +1771,15 @@ the margin on a rare positive costs more than on a common negative. It moves the
 it does not add capacity. Tune it after `C` and `gamma`, and judge it with recall/precision,
 never with accuracy.
 
+> **Real-life example.** A camera inspects circuit boards at the end of an assembly line, and
+> about 7 % of them have a soldering defect. A missed defect means a returned product and a
+> warranty claim; a false alarm means half a minute of manual inspection. Those costs, not
+> accuracy, decide whether `class_weight="balanced"` is worth the precision it gives up.
+
 ```python
 # 600 points in 2-D, one cluster per class; weights=[0.93, 0.07] makes class 1 a 7 % minority,
 # and flip_y=0.02 gives 2 % of the points a random label
+# e.g. two image features of circuit boards, label = soldering defect (1, about 7 %) or fine (0)
 X_imb, y_imb = make_classification(n_samples=600, n_features=2, n_informative=2, n_redundant=0,
                                    n_clusters_per_class=1, weights=[0.93, 0.07], class_sep=1.1,
                                    flip_y=0.02, random_state=RANDOM_STATE)
@@ -2204,6 +2274,7 @@ gives the same coordinates up to sign.
 - Rahimi, A., & Recht, B. (2007). Random features for large-scale kernel machines. *Advances in NIPS 20*. — Random Fourier features (`RBFSampler`).
 - Williams, C. K. I., & Seeger, M. (2001). Using the Nyström method to speed up kernel machines. *Advances in NIPS 13*. — The Nyström approximation (`Nystroem`).
 - Smola, A. J., & Schölkopf, B. (2004). A tutorial on support vector regression. *Statistics and Computing*, 14(3), 199–222. — A readable derivation of the ε-insensitive loss and its dual, including the rule of thumb for $\varepsilon$ used in section 7.5.
+- Rupp, M., Tkatchenko, A., Müller, K.-R., & von Lilienfeld, O. A. (2012). Fast and accurate modeling of molecular atomization energies with machine learning. *Physical Review Letters*, 108(5), 058301. — Kernel ridge regression replacing quantum-chemistry calculations (section 5.2).
 - Street, W. N., Wolberg, W. H., & Mangasarian, O. L. (1993). Nuclear feature extraction for breast tumor diagnosis. *Proceedings of SPIE 1905*, 861–870. — The source of the breast cancer Wisconsin data used throughout and in the case study of section 8.
 
 ### Documentation and online resources

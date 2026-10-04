@@ -96,10 +96,10 @@ def make_friedman(n, d=8, noise=1.0, rng=rng):
     Gaussian noise with standard deviation `noise`. The default rng=rng is the notebook's
     generator, so every call draws fresh data.
     """
-    X = rng.uniform(0, 1, size=(n, d))
+    X = rng.uniform(0, 1, size=(n, d))          # e.g. 8 settings of a production machine, scaled to [0, 1]
     # only columns 0..4 enter the target; the remaining d - 5 columns are distractors
     y = (10 * np.sin(np.pi * X[:, 0] * X[:, 1]) + 20 * (X[:, 2] - 0.5) ** 2
-         + 10 * X[:, 3] + 5 * X[:, 4] + rng.normal(0, noise, n))
+         + 10 * X[:, 3] + 5 * X[:, 4] + rng.normal(0, noise, n))    # e.g. the energy one run uses (kWh)
     return X, y
 
 X_train, y_train = make_friedman(600)          # (600, 8) and (600,)
@@ -162,6 +162,12 @@ The catch is the word **independently**. Two decision trees fitted to the same d
 far from independent — they make the *same* mistakes on the *same* hard points. Everything
 that follows is about manufacturing disagreement without destroying accuracy.
 
+> **Real-life example.** Data-labelling firms often have each training image tagged by three or
+> five crowd workers and keep the majority label. If every worker were right 70 % of the time,
+> independently of the others, the majority of three would be right 78 % of the time and the
+> majority of five 84 %. In practice the workers stumble over the *same* ambiguous images (is
+> that a husky or a wolf?), so the real gain is smaller — the correlation problem of section 1.2.
+
 ### 1.2 The variance of an average of correlated predictors
 
 The quantitative version of the argument is cleanest for regression. Let
@@ -199,6 +205,12 @@ notebook lives inside it:
   Averaging therefore changes variance only, and leaves **bias untouched**. Bagging a
   high-bias model is a waste of computation; this is why we bag *deep, unpruned* trees,
   which have low bias and high variance.
+
+> **Real-life example.** The formula is also the arithmetic of a share portfolio. Spread your
+> money equally over many shares that are equally risky and equally correlated, and the
+> portfolio's variance is exactly the boxed expression. Diversification removes the second
+> term — the company-specific risk — but no number of shares removes the first: the market
+> risk that moves all of them together in a crash.
 
 > **Why it matters.** The formula splits the ensemble design problem into two independent
 > questions — "how good is one member?" and "how much do members disagree?" — and every
@@ -394,6 +406,13 @@ Nothing in the algorithm is specific to trees, but trees are the ideal base lear
 are high-variance (so there is a lot to remove), low-bias when grown deep (so the average is
 not biased), and fast to fit.
 
+> **Real-life example.** A delivery company predicts how long a route will take from its
+> distance, number of stops, time of day and weather. One deep tree fitted to last year's
+> 20 000 routes changes visibly if a few unusual days (a snowstorm, a city marathon) are left
+> out. Bagging fits a few hundred trees, each to a bootstrap resample of the route log, and
+> averages their predicted times, so the forecast no longer hinges on which odd days
+> happened to be in the data.
+
 ### 2.2 Bagging from scratch
 
 The implementation is thirty lines. We write it so that it *also* covers random forests:
@@ -505,6 +524,7 @@ smooth and sensible.
 from sklearn.datasets import make_moons           # two interleaving half-circles: a classic 2-D toy problem
 from sklearn.ensemble import BaggingClassifier, RandomForestClassifier
 
+# e.g. two standardised blood-test values per patient, label = healthy (0) or ill (1)
 X_moon, y_moon = make_moons(n_samples=300, noise=0.30, random_state=RANDOM_STATE)   # noise = sd added to each point
 # a 30 % test set; stratify keeps the class balance the same in both parts
 Xm_tr, Xm_te, ym_tr, ym_te = train_test_split(X_moon, y_moon, test_size=0.3, stratify=y_moon,
@@ -582,6 +602,11 @@ single tree: 10.037   B=10: 5.035   B=200: 4.430
 > This is the opposite of boosting, where the number of rounds is *the* critical
 > hyper-parameter (section 6).
 
+> **Real-life example.** An online advertising platform scores every ad request with a forest
+> and has a few milliseconds to answer. It does not choose the number of trees by
+> cross-validation: it uses as many as fit into that latency budget, knowing that beyond the
+> plateau extra trees would only cost time.
+
 ### 2.5 Out-of-bag error: a free validation set
 
 Each bootstrap sample leaves some training points untouched. How many? The probability that
@@ -631,6 +656,12 @@ our fitted forest: mean OOB fraction = 0.3668
 The simulation, the closed form and $e^{-1}$ agree to three decimals, and the masks recorded
 by our own implementation show the same fraction. Now the practical payoff: OOB error tracks
 test error as trees are added, so it can replace a validation split entirely.
+
+> **Real-life example.** A civil-engineering lab wants to predict the compressive strength of
+> concrete from its mix recipe, but has crushed only 300 test cylinders. Holding 60 of them
+> back for validation would cost a fifth of its data; with the out-of-bag error every
+> cylinder helps to train the forest and still gets an honest prediction from the trees that
+> never saw it.
 
 ```python
 bag_oob = BaggedTrees(n_estimators=150, random_state=RANDOM_STATE).fit(X_train, y_train)
@@ -691,6 +722,12 @@ Restricting the feature set forces trees down different paths. Each individual t
 falls faster than $\sigma^2$ rises, the ensemble improves. This is the trade-off, and it has
 a sweet spot.
 
+> **Real-life example.** In a house-price model with 20 features, living area is by far the
+> strongest predictor, so every bagged tree splits on it at the root and the trees make
+> similar mistakes. With `max_features=6`, living area is not even a candidate at about 70 %
+> of the nodes, so many trees have to start from location, age or condition instead: each
+> tree is a little worse, but their errors overlap less.
+
 ### 3.2 Watching $\rho$ fall
 
 To see the trade-off we need features that carry overlapping information, which is the
@@ -706,8 +743,9 @@ def make_correlated(n, d=20, corr=0.75, rng=rng):
     of the first ten columns plus 2 sin(2 x_0) plus noise with sd 1.5. Returns X (n, d) and y (n,).
     """
     z = rng.normal(size=(n, 1))                 # the shared factor; shape (n, 1) broadcasts across all d columns
+    # e.g. answers to 20 survey questions that all reflect one overall customer satisfaction z
     X = np.sqrt(corr) * z + np.sqrt(1 - corr) * rng.normal(size=(n, d))
-    y = X[:, :10].sum(axis=1) + 2.0 * np.sin(2 * X[:, 0]) + rng.normal(0, 1.5, n)
+    y = X[:, :10].sum(axis=1) + 2.0 * np.sin(2 * X[:, 0]) + rng.normal(0, 1.5, n)   # e.g. next year's spend
     return X, y
 
 Xc, yc = make_correlated(700)
@@ -841,6 +879,12 @@ a forest: they cost a fraction of the time, and on noisy problems with many feat
 often slightly better. On problems where the *exact* split location matters (sharp thresholds
 in the truth) they are slightly worse.
 
+> **Real-life example.** Extra trees suit a grain buyer's near-infrared scanner that estimates
+> the protein content of wheat from hundreds of neighbouring, noisy wavelength readings: no
+> single cut-off is special, and refitting is cheap. They suit less a model of housing-benefit
+> payments, which jump at income limits fixed by law — a random threshold only approximates
+> such an exact cut-off.
+
 ### 3.4 Feature importance, and why the default one lies
 
 A fitted forest offers `feature_importances_`: for each feature, the total impurity decrease
@@ -851,6 +895,12 @@ splits and so more opportunities to fit noise (Strobl et al., 2007). The demonst
 brutal: give the forest one genuinely informative *binary* feature and three pure-noise
 features of different cardinality.
 
+> **Real-life example.** A hospital's readmission model accidentally keeps the patient's record
+> number — a randomly assigned seven-digit ID — next to "diabetic: yes/no". The forest can
+> split the ID in hundreds of places and fit noise with each split, so impurity importance
+> ranks it among the top features; permutation importance on held-out patients shows that it
+> is close to worthless.
+
 ```python
 # permutation_importance(model, X, y, n_repeats=...) shuffles one column at a time and records how much the
 # model's score drops; .importances_mean and .importances_std summarise the repeats
@@ -859,13 +909,13 @@ from sklearn.inspection import permutation_importance
 n_imp = 900
 # one informative 0/1 feature and three pure-noise features with many, 10 and 2 distinct values
 X_imp = pd.DataFrame({
-    "informative_binary": rng.integers(0, 2, n_imp).astype(float),
-    "noise_continuous": rng.normal(size=n_imp),            # pure noise, ~900 distinct values
+    "informative_binary": rng.integers(0, 2, n_imp).astype(float),   # e.g. diabetic: yes / no
+    "noise_continuous": rng.normal(size=n_imp),            # pure noise, ~900 distinct values (e.g. a random ID number)
     "noise_10_levels": rng.integers(0, 10, n_imp).astype(float),   # pure noise, 10 values
     "noise_binary": rng.integers(0, 2, n_imp).astype(float),       # pure noise, 2 values
 })
 # y = 1 when 2 * informative_binary + noise exceeds 1, so y follows the binary feature most of the time
-y_imp = ((X_imp["informative_binary"] * 2 + rng.normal(0, 1.0, n_imp)) > 1).astype(int)
+y_imp = ((X_imp["informative_binary"] * 2 + rng.normal(0, 1.0, n_imp)) > 1).astype(int)  # e.g. readmitted: yes / no
 Xi_tr, Xi_te, yi_tr, yi_te = train_test_split(X_imp, y_imp, test_size=0.35, stratify=y_imp,
                                               random_state=RANDOM_STATE)
 frf = RandomForestClassifier(n_estimators=300, random_state=RANDOM_STATE).fit(Xi_tr, yi_tr)
@@ -948,6 +998,12 @@ somewhere else.
 
 The weak learner is traditionally a **decision stump** — a tree of depth 1, one split, the
 weakest non-trivial model there is.
+
+> **Real-life example.** The face detector of Viola & Jones (2001), which made real-time face
+> detection practical and still ships with the OpenCV library, is built from AdaBoost with
+> stumps. Each stump thresholds one rectangle feature of a 24 × 24 pixel window (the first one
+> it picks checks that the eye region is darker than the cheeks), and boosting selects a few
+> thousand of them out of more than 100 000 candidates.
 
 ### 4.3 AdaBoost from scratch
 
@@ -1296,6 +1352,13 @@ $`g_i = y_i - p_i`$ — the probability error — which is why the same machiner
 | log loss (binary) | $\log(1 + e^{-2yF})$ | $`y_i - \sigma(F_i)`$ | classification (default) |
 | Poisson | $e^{F} - y F$ | $`y_i - e^{F_i}`$ | counts |
 
+> **Real-life example.** A grid operator forecasts tomorrow's hourly electricity demand. The
+> starting prediction is the average load, about 520 MW. The first small tree learns the
+> daily rhythm (low at night, high in working hours); its residuals still show that cold
+> evenings are under-predicted, so the next trees split on temperature; later trees pick up
+> what is left, such as public holidays. No tree has to explain everything — only what the
+> ensemble so far still gets wrong.
+
 ### 5.2 Gradient boosting from scratch
 
 ```python
@@ -1373,6 +1436,7 @@ The panel series every gradient-boosting explanation needs. We use a one-dimensi
 so that the fitted function is visible, and show the ensemble after 1, 5, 20 and 100 rounds.
 
 ```python
+# e.g. x1 = years since a company was founded, y1 = its revenue: steady growth plus a ~6-year business cycle
 x1 = np.sort(rng.uniform(0, 10, 200))                        # 200 sorted x-values on [0, 10)
 y1 = np.sin(x1) + 0.30 * x1 + rng.normal(0, 0.35, len(x1))   # a wiggly upward trend plus noise
 grid = np.linspace(0, 10, 400)[:, None]                      # (400, 1) points for drawing the fitted curve
@@ -1417,6 +1481,13 @@ important hyper-parameter after the number of rounds, and the two are locked tog
 $\eta$ roughly doubles the number of rounds you need. Friedman (2001) found that small $\eta$
 with many rounds generalises better than large $\eta$ with few — the ensemble explores the
 function space in smaller, less greedy steps.
+
+> **Real-life example.** A car insurer models the cost of claims, where a handful of policies
+> carry enormous claims (one serious injury can cost a million euros). With a learning rate
+> of 1, the first tree that puts such a claim into a small leaf sets that leaf's prediction to
+> the leaf's full average, million-euro claim included; with 0.05 it takes only 5 % of that
+> step, and many later trees, each with different splits, decide together how much of that
+> claim is pattern and how much is bad luck.
 
 ```python
 X_g, y_g = make_friedman(700)
@@ -1468,6 +1539,11 @@ Friedman (2002) added one line to the algorithm: fit each tree on a random fract
 injects bagging-style variance reduction into boosting, decorrelating consecutive trees, and
 it makes each round cheaper.
 
+> **Real-life example.** A ride-hailing company fits its trip-duration model to 5 million past
+> trips. With `subsample=0.5` each boosting round sees a different random half of them: every
+> round costs half as much, and consecutive trees no longer all chase the same handful of
+> freak trips (a road closure, a driver who got lost).
+
 ```python
 fig, ax = plt.subplots(figsize=(8.5, 4.8))
 rows = []
@@ -1513,12 +1589,19 @@ from $O(n\log n)$ to $O(n + \text{bins})$, and the binned data fits in cache. Ac
 from binning is usually negligible, because a tree only needs to find an approximately right
 threshold.
 
+> **Real-life example.** A payment provider's fraud model uses the transaction amount, which
+> takes hundreds of thousands of distinct values down to the cent. Binned into 255 buckets of
+> roughly equal size, a split can still separate "up to about €50" from "more"; whether it
+> falls at €49.90 or at €50.10 makes no practical difference, but the split search no longer
+> has to sort millions of amounts at every node.
+
 ```python
 from sklearn.datasets import make_regression      # synthetic data with a linear target plus Gaussian noise
 from sklearn.ensemble import HistGradientBoostingRegressor
 
 N_ROUNDS = 60          # kept small so that the slow implementation still fits the runtime budget
 # 16 000 rows and 15 features, 10 of which affect the target; noise=10.0 is the noise standard deviation
+# e.g. 16 000 used cars, each described by 15 numeric features, and their resale price
 X_big, y_big = make_regression(n_samples=16000, n_features=15, n_informative=10, noise=10.0,
                                random_state=RANDOM_STATE)
 Xb_tr, Xb_te, yb_tr, yb_te = train_test_split(X_big, y_big, test_size=0.25, random_state=RANDOM_STATE)
@@ -1586,11 +1669,20 @@ container; read them as ratios, not as benchmarks for your laptop.)
   `category` column is split by partitioning its levels directly, instead of being one-hot
   expanded into many nearly-useless binary columns.
 
+> **Real-life examples.**
+> - *Missing values:* in a bank's loan-default model, "months since the last missed payment"
+>   is empty for customers who have never missed one. Imputing the median would pretend they
+>   missed one a while ago; the boosting model instead learns at each split which side those
+>   customers belong on.
+> - *Categories:* in a flight-delay model, "departure airport" has about 150 levels. One-hot
+>   encoding turns it into 150 sparse columns; native support lets a single split put, say,
+>   all congested hub airports on one side and the rest on the other.
+
 ```python
 cities = rng.choice(["Lisbon", "Oslo", "Cairo", "Lima", "Osaka"], 600)      # 600 random city names
 # lognormal(3, 0.6): positive values whose logarithm is normal with mean 3 and sd 0.6;
 # pd.Categorical stores the city strings with pandas' "category" dtype
-demo = pd.DataFrame({"amount": rng.lognormal(3, 0.6, 600),
+demo = pd.DataFrame({"amount": rng.lognormal(3, 0.6, 600),   # e.g. a restaurant bill in euros (median about 20)
                      "city": pd.Categorical(cities)})
 demo.loc[rng.random(len(demo)) < 0.15, "amount"] = np.nan          # 15 % missing, on purpose
 # each row's city effect, looked up in a dict
@@ -1667,6 +1759,12 @@ Bagging and boosting combine copies of *one* model. **Voting** and **stacking** 
   standard, and usually the best, choice). The cross-fitting is essential — training the
   meta-learner on in-sample predictions would let an overfitted base model claim all the
   weight.
+
+> **Real-life example.** The Netflix Prize (2006–2009) asked teams to predict the star rating a
+> subscriber would give a film. The winning team, BellKor's Pragmatic Chaos, beat Netflix's own
+> system by just over 10 % by blending the predictions of more than a hundred models — stacking
+> on a grand scale. Netflix later explained that it never put the full blend into production:
+> the extra accuracy did not justify the engineering effort (Amatriain & Basilico, 2012).
 
 ```python
 from sklearn.datasets import load_breast_cancer
@@ -1784,13 +1882,20 @@ it with two data-generating processes of the same size and the same noise level:
 and additive (made for a linear model), one built from interactions and thresholds (made for
 trees).
 
+> **Real-life examples.**
+> - *Smooth and additive:* a school predicts final-exam marks from the homework average,
+>   attendance and the mid-term mark; each adds a little, steadily, whatever the others are.
+> - *Interactions and thresholds:* a farm predicts wheat yield, where fertiliser only pays off
+>   if there has been enough rain, and one night of frost at flowering can ruin the crop
+>   whatever else went right.
+
 ```python
 def dgp_linear(n, rng):
     """Smooth, additive data-generating process (dgp): y is linear in 4 of the 8 features, plus noise with sd 1.
 
     X has shape (n, 8), uniform on [-2, 2]; returns (X, y).
     """
-    X = rng.uniform(-2, 2, size=(n, 8))
+    X = rng.uniform(-2, 2, size=(n, 8))      # e.g. 8 standardised facts about a student; y = the exam mark
     y = 1.5 * X[:, 0] - 1.0 * X[:, 1] + 0.8 * X[:, 2] + 0.5 * X[:, 3] + rng.normal(0, 1.0, n)
     return X, y
 
@@ -1800,7 +1905,7 @@ def dgp_interactions(n, rng):
     sign(x0 * x1) is an XOR-like interaction, (x2 > 0.5) * x3 lets x3 matter only above a threshold
     on x2, and |x4| is a V shape. Returns (X, y).
     """
-    X = rng.uniform(-2, 2, size=(n, 8))
+    X = rng.uniform(-2, 2, size=(n, 8))      # e.g. 8 standardised field and weather measurements; y = the wheat yield
     y = (3 * np.sign(X[:, 0] * X[:, 1]) + 2 * (X[:, 2] > 0.5) * X[:, 3]
          + 1.5 * np.abs(X[:, 4]) + rng.normal(0, 1.0, n))
     return X, y
@@ -1914,7 +2019,13 @@ inputs, *every* input falls into the outermost leaf, so the prediction is a cons
 amount of boosting or averaging changes that — the ensemble is still a sum of piecewise
 constant functions, and a piecewise constant function is flat at infinity.
 
+> **Real-life example.** An online shop's daily orders have grown steadily for five years. A
+> forest or boosting model with the date as a feature, asked about next year, can only answer
+> with the level of its most recent leaf — roughly the last weeks of the training data — and
+> misses all further growth, however well it fitted the five years it has seen.
+
 ```python
+# e.g. x = years since an online shop opened, y = its daily orders (in hundreds)
 x_lin = rng.uniform(0, 5, 160)                               # training inputs only cover [0, 5)
 y_lin = 2.0 * x_lin + 1.0 + rng.normal(0, 0.8, len(x_lin))   # a straight line plus noise
 x_all = np.linspace(0, 10, 400)[:, None]                     # predict out to x = 10, twice the training range
@@ -1965,11 +2076,17 @@ boosting with enough rounds will eventually fit them too. Averaging, by contrast
 them: a mislabelled point is in only ~63 % of the bootstrap samples, and even there it is one
 point among many in its leaf.
 
+> **Real-life example.** An e-mail provider trains its spam filter on users' "report spam"
+> clicks. Some users report newsletters they once subscribed to, others never report real
+> spam, so a fair share of the labels is wrong. Boosting keeps up-weighting exactly those
+> contradictory e-mails and bends its boundary around them; a forest dilutes them.
+
 ```python
 from sklearn.datasets import make_classification
 from sklearn.ensemble import GradientBoostingClassifier
 
 # 800 points, 10 features (5 informative, 2 redundant); flip_y=0.0 means the labels start out clean
+# e.g. 800 e-mails described by 10 word and sender statistics, label = spam (1) or not (0)
 X_n, y_n = make_classification(n_samples=800, n_features=10, n_informative=5, n_redundant=2,
                                flip_y=0.0, class_sep=1.3, random_state=RANDOM_STATE)
 Xn_tr, Xn_te, yn_tr, yn_te = train_test_split(X_n, y_n, test_size=0.35, stratify=y_n,
@@ -2073,6 +2190,7 @@ worth tuning.
 
 ```python
 # 1200 points, 20 features (8 informative, 5 redundant), 3 % of the labels re-drawn at random
+# e.g. 1 200 machine runs with 20 sensor readings each, label = failed within a week (1) or not (0)
 Xf, yf = make_classification(n_samples=1200, n_features=20, n_informative=8, n_redundant=5,
                              flip_y=0.03, class_sep=1.0, random_state=RANDOM_STATE)
 Xf_tr, Xf_te, yf_tr, yf_te = train_test_split(Xf, yf, test_size=0.3, stratify=yf,
@@ -2326,6 +2444,11 @@ loss on it after every round, and stops when it has not improved for `n_iter_no_
 rounds. For classification with imbalanced classes set `scoring="roc_auc"` (or another metric)
 instead of `"loss"`, and remember that the internal split is *not* stratified by default in
 older versions — check, or do your own early stopping on an explicit validation set.
+
+> **Real-life example.** A weather service corrects the raw temperature forecast for each of
+> its stations with a boosted model that is refitted every night on the latest data. With
+> early stopping each night's fit chooses its own number of rounds, so the model keeps up
+> as the seasons change without anyone re-tuning it by hand.
 
 ## 11. Case study: real data, honest comparison
 
@@ -2842,6 +2965,7 @@ pattern is standard practice for forecasting (notebook 16).
 - Ho, T. K. (1998). The random subspace method for constructing decision forests. *IEEE Transactions on Pattern Analysis and Machine Intelligence*, 20(8), 832–844. — Feature subsampling, independently of Breiman.
 - Geurts, P., Ernst, D., & Wehenkel, L. (2006). Extremely randomized trees. *Machine Learning*, 63(1), 3–42. — Extra trees (section 3.3).
 - Freund, Y., & Schapire, R. E. (1997). A decision-theoretic generalization of on-line learning and an application to boosting. *Journal of Computer and System Sciences*, 55(1), 119–139. — AdaBoost.
+- Viola, P., & Jones, M. (2001). Rapid object detection using a boosted cascade of simple features. *Proceedings of CVPR 2001*, I-511–I-518. — AdaBoost with decision stumps as a real-time face detector (section 4.2).
 - Schapire, R. E., Freund, Y., Bartlett, P., & Lee, W. S. (1998). Boosting the margin: a new explanation for the effectiveness of voting methods. *The Annals of Statistics*, 26(5), 1651–1686. — The margin explanation used in section 4.5.
 - Friedman, J. H., Hastie, T., & Tibshirani, R. (2000). Additive logistic regression: a statistical view of boosting. *The Annals of Statistics*, 28(2), 337–407. — AdaBoost as stagewise fitting of the exponential loss (section 4.6).
 - Friedman, J. H. (2001). Greedy function approximation: a gradient boosting machine. *The Annals of Statistics*, 29(5), 1189–1232. — Gradient boosting, shrinkage, and partial dependence plots.
@@ -2851,6 +2975,7 @@ pattern is standard practice for forecasting (notebook 16).
 - Ke, G., et al. (2017). LightGBM: a highly efficient gradient boosting decision tree. *Advances in NeurIPS 30*. — Histogram binning and leaf-wise growth, the basis of `HistGradientBoosting*`.
 - Prokhorenkova, L., Gusev, G., Vorobev, A., Dorogush, A. V., & Gulin, A. (2018). CatBoost: unbiased boosting with categorical features. *Advances in NeurIPS 31*.
 - Wolpert, D. H. (1992). Stacked generalization. *Neural Networks*, 5(2), 241–259. — Stacking (section 6).
+- Amatriain, X., & Basilico, J. (2012). Netflix recommendations: beyond the 5 stars (part 1). *The Netflix Tech Blog*. https://netflixtechblog.com/netflix-recommendations-beyond-the-5-stars-part-1-55838468f429 — Why the blend that won the Netflix Prize was never deployed in full (section 6).
 - Dietterich, T. G. (2000). Ensemble methods in machine learning. *Multiple Classifier Systems (LNCS 1857)*, 1–15. — A short, readable survey of why ensembles work.
 - Dietterich, T. G. (2000). An experimental comparison of three methods for constructing ensembles of decision trees: bagging, boosting, and randomization. *Machine Learning*, 40(2), 139–157. — The systematic study of boosting's degradation under label noise (section 9.2).
 - Zhu, J., Zou, H., Rosset, S., & Hastie, T. (2009). Multi-class AdaBoost. *Statistics and Its Interface*, 2(3), 349–360. — The SAMME algorithm implemented in section 4.3.

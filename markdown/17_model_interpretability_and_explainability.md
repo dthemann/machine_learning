@@ -97,6 +97,12 @@ shap is not installed — the optional TreeSHAP section is skipped (conda instal
 4. **Science.** Sometimes the model is the microscope: what a good predictor of protein
    folding, disease progression or customer churn *uses* is a hypothesis about the world.
 
+> **Real-life example.** Point 2 in practice: an online shop trains a model to flag fraudulent
+> orders and gets an almost perfect AUC. The importance plot shows that nearly everything rests
+> on one column, `chargeback_filed` — but card holders file a chargeback only *after* they have
+> spotted a fraudulent payment, so the column records the label instead of predicting it. At
+> checkout, where no chargeback can exist yet, the model would be useless.
+
 ### 1.2 What "interpretable" means — and a debate
 
 Lipton (2018) points out that "interpretability" is not one property but several:
@@ -106,6 +112,12 @@ understand how training finds the model?), and *post-hoc interpretability* (can 
 generate explanations — text, visualisations, examples — of a model we do not otherwise
 understand?). A 30-feature linear model is decomposable but not simulatable; a tiny
 decision tree is both; a boosted ensemble is neither, but admits post-hoc explanations.
+
+> **Real-life example.** Retail banks have long scored loan applicants with a *scorecard*: a
+> table that awards points per attribute (so many for three years with the same employer, a
+> deduction for every missed payment in the past year) and approves above a cut-off score. A
+> loan officer can recompute any decision with pencil and paper — the model is simulatable —
+> and a rejected applicant can be told exactly which lines of the table cost them the loan.
 
 Rudin (2019) argues that for **high-stakes decisions** we should not explain black boxes
 at all but use interpretable models — because post-hoc explanations are approximations
@@ -601,6 +613,7 @@ and watch the importance of tenure split in two, then compare with the more expe
 noise_train = rng.normal(0, 1.0, len(X_train))      # standard-normal noise, one value per row
 noise_test = rng.normal(0, 1.0, len(X_test))
 # tenure_copy = tenure + noise: a near-duplicate of tenure
+# e.g. tenure as recorded in a second system (the billing database next to the CRM), off by about a month
 X2_train = X_train.assign(tenure_copy=X_train["tenure_months"] + noise_train)
 X2_test = X_test.assign(tenure_copy=X_test["tenure_months"] + noise_test)
 hgb_copy = Pipeline([("prep", make_preprocessing(numeric=NUMERIC + ["tenure_copy"])),
@@ -1062,6 +1075,13 @@ and $`\phi_j`$ the share of player $j$:
 - **Dummy**: a player that never changes any coalition's value gets zero.
 - **Additivity**: the shares for a sum of two games are the sums of the shares.
 
+> **Real-life example.** Two freelancers bid for a website job. Ana alone could charge 6 000 €
+> for it, Ben alone 4 000 €, and the two together (she designs, he programs) 14 000 €. If Ana
+> joins first she adds 6 000 €, if she joins second she adds 10 000 € (14 000 − 4 000);
+> averaged over the two orders her fair share is 8 000 €, and Ben's, by the same reasoning,
+> 6 000 €. The shares add up to the whole fee (efficiency). For a prediction, the features are
+> the partners and the fee is the prediction minus the average prediction.
+
 The unique solution weighs the marginal contribution of $j$ to every coalition $S$ that
 does not contain it:
 
@@ -1267,6 +1287,12 @@ contribution of $j$ is $`w_j(x_j - \bar{z}_j)`$ *for every coalition*, and there
 ```
 
 This is the test every Shapley implementation should pass.
+
+> **Real-life example.** A property portal prices flats with a linear model in which every
+> square metre adds 3 000 €. For a 90 m² flat, explained against a background of flats that
+> average 70 m², the Shapley value of floor area is 3 000 × (90 − 70) = 60 000 €: the flat's
+> size accounts for 60 000 € of the gap between its predicted price and the average
+> prediction — whatever its location, floor or age.
 
 ```python
 from sklearn.linear_model import LinearRegression
@@ -1951,6 +1977,7 @@ from sklearn.metrics import r2_score                           # R²: 1 = perfec
 
 syn_rng = np.random.default_rng(RANDOM_STATE)       # a dedicated generator: this experiment stands on its own
 n_syn = 3000
+# e.g. a field trial: z = true soil moisture, x1-x3 = three moisture probes, x4 = fertiliser dose, y = wheat yield
 z_lat = syn_rng.normal(0, 1, n_syn)                 # the quantity that really drives y
 x4 = syn_rng.normal(0, 1, n_syn)                    # an independent, weaker driver
 # x1, x2, x3 = z + small noise (sd 0.15); `dict1 | dict2` merges two dicts (Python 3.9+), adding the x4 column

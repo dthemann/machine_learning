@@ -489,6 +489,12 @@ Vectors are column vectors; $\mathbf{w}^\top \mathbf{x}$ is the dot product. Lea
 quantities in scikit-learn end in an underscore (`coef_`, `feature_importances_`);
 hyper-parameters are constructor arguments.
 
+> **Real-life example.** An estate agency predicting sale prices: every house sold last year is
+> one sample, its feature vector holds what was recorded about it (floor area, rooms, year
+> built, distance to the station), the target is the price it fetched, and the prediction is
+> the price the model suggests for a house just put on the market. In a linear model each
+> weight is a price change per unit of one feature, such as euros per extra square metre.
+
 ### 4.2 The helper module
 
 `notebooks/course_utils.py` is small and worth reading: it sets the plotting style, holds
@@ -559,6 +565,16 @@ you know the ground truth — you can check whether a model recovers the effect 
 demonstrate a bias mechanism exactly, or create a failure mode on demand. That makes them
 excellent for teaching and useless as evidence about the world, so the course never draws a
 real-world conclusion from them.
+
+> **Real-life examples.**
+> - Each simulated set imitates data a real organisation holds: a row of `load_churn()` is one
+>   customer of a phone and broadband provider (`churned` = cancelled; predicting it decides who
+>   gets a retention offer), `load_energy_demand()` a city grid's hourly load that the operator
+>   forecasts a day ahead, `load_loans()` a bank's loan decisions with a bias built in on
+>   purpose, so that notebook 19 can check that a fix removes exactly that bias.
+> - Of the real sets, `diabetes` is the one the table below names only briefly: 442 patients
+>   with ten baseline measurements (age, sex, body-mass index, blood pressure, six blood-serum
+>   values), and as target a measure of how far the disease progressed one year later.
 
 ```python
 from sklearn.datasets import load_wine, load_digits, load_diabetes   # small real datasets that ship with scikit-learn

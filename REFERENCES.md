@@ -61,6 +61,9 @@ Citation keys (e.g. `[Bishop2006]`) are used inside the notebooks.
 - `[Efron2016]` Efron, B., & Hastie, T. (2016). *Computer Age Statistical Inference*. Cambridge University Press. **(free)** — https://hastie.su.domains/CASI/
 - `[Nocedal2006]` Nocedal, J., & Wright, S. J. (2006). *Numerical Optimization* (2nd ed.). Springer.
 - `[Blitzstein2019]` Blitzstein, J. K., & Hwang, J. (2019). *Introduction to Probability* (2nd ed.). CRC Press. **(free)** — https://projects.iq.harvard.edu/stat110
+- `[Silverman1986]` Silverman, B. W. (1986). *Density Estimation for Statistics and Data Analysis*. Chapman & Hall.  
+  The classic short introduction to kernel density estimation: kernels, bandwidth choice, the curse of dimensionality.
+- `[WandJones1995]` Wand, M. P., & Jones, M. C. (1995). *Kernel Smoothing*. Chapman & Hall.
 
 ### Specialised topics
 
@@ -118,6 +121,10 @@ Citation keys (e.g. `[Bishop2006]`) are used inside the notebooks.
 
 - `[Cover1967]` Cover, T., & Hart, P. (1967). Nearest neighbor pattern classification. *IEEE Transactions on Information Theory*, 13(1), 21–27.
 - `[Fix1951]` Fix, E., & Hodges, J. L. (1951). Discriminatory analysis: nonparametric discrimination, consistency properties. USAF School of Aviation Medicine, Report 4. (Reprinted 1989, *International Statistical Review*, 57(3), 238–247.)
+- `[Rosenblatt1956]` Rosenblatt, M. (1956). Remarks on some nonparametric estimates of a density function. *The Annals of Mathematical Statistics*, 27(3), 832–837.
+- `[Parzen1962]` Parzen, E. (1962). On estimation of a probability density function and mode. *The Annals of Mathematical Statistics*, 33(3), 1065–1076.
+- `[Silverman1981]` Silverman, B. W. (1981). Using kernel density estimates to investigate multimodality. *Journal of the Royal Statistical Society: Series B*, 43(1), 97–99.
+- `[Sheather1991]` Sheather, S. J., & Jones, M. C. (1991). A reliable data-based bandwidth selection method for kernel density estimation. *Journal of the Royal Statistical Society: Series B*, 53(3), 683–690.
 - `[Bellman1961]` Bellman, R. E. (1961). *Adaptive Control Processes: A Guided Tour*. Princeton University Press. (Origin of the phrase "curse of dimensionality".)
 - `[Beyer1999]` Beyer, K., Goldstein, J., Ramakrishnan, R., & Shaft, U. (1999). When is "nearest neighbor" meaningful? *Proceedings of ICDT 1999*, 217–235.
 - `[Zhang2004]` Zhang, H. (2004). The optimality of naive Bayes. *Proceedings of FLAIRS 2004*.

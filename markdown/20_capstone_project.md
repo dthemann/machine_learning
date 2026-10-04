@@ -297,6 +297,11 @@ that *is* fitted (imputation, scaling, encoding) goes into the `ColumnTransforme
 that it is fitted on training folds only. Identifiers and the signup date are dropped:
 the date is redundant with tenure, and an ID is at best noise and at worst a leak.
 
+> **Real-life example.** A bank's system moves closed accounts into a separate number range. In a
+> historical table every account number from that range belongs to a customer who left: the ID
+> *is* the label, a model scores almost perfectly in validation, and on today's open accounts —
+> none of which is in that range yet — it has learned nothing.
+
 ```python
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -896,6 +901,12 @@ replacement 200 times, recompute every metric, and take the 2.5 % and 97.5 % per
 For the comparison with the heuristic we bootstrap the *difference* on the same
 resamples (a paired comparison), which is much tighter than comparing two separate
 intervals.
+
+> **Real-life example.** A delivery company compares two route planners by planning the same 200
+> days with both. A snowy day is slow for both, so each planner's own interval is wide because of
+> the weather; the day-by-day *difference* cancels the weather and shows whether one planner is
+> consistently faster. Bootstrapping the difference on the same resamples does the same for the
+> model and the heuristic here.
 
 ```python
 from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
@@ -1512,6 +1523,12 @@ $`q_j`$ the share of the reference data in bin $j$ and $`q'_j`$ the share of the
 
 with the usual rules of thumb: below 0.1 stable, 0.1–0.25 investigate, above 0.25 the
 distribution has moved.
+
+> **Real-life example.** An online shop's fraud-detection model was trained when 20 % of orders
+> came from phones. After the shop launches a mobile app, 70 % do; the PSI of the device-type
+> feature jumps to about 1.1, far above 0.25. That does not prove the model is now wrong, but it
+> has never seen this mix of orders and must be re-checked on phone orders before its scores are
+> trusted.
 
 ```python
 def psi(reference, current, bins=10):
