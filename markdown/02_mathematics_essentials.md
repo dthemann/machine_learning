@@ -161,14 +161,38 @@ x.z = 50.0  -> cosine +1.00 (parallel: z = 2x, different length, same direction)
 **Example — three customers.** Describe a customer by (years as a customer, number of
 products): Ana $= (3, 4)$ and Ben $= (6, 8)$ — the `x` and `z` above — and Cleo $= (4, 3)$.
 
-- Ana and Ben differ by $(3, 4)$: Euclidean distance $\sqrt{3^2 + 4^2} = 5$, Manhattan distance
-  $3 + 4 = 7$, Chebyshev distance $\max(3, 4) = 4$; cosine similarity
-  $\frac{3 \cdot 6 + 4 \cdot 8}{5 \cdot 10} = \frac{50}{50} = 1$.
-- Ana and Cleo differ by $(1, -1)$: Euclidean distance $\sqrt{1 + 1} \approx 1.41$; cosine
-  similarity $\frac{3 \cdot 4 + 4 \cdot 3}{5 \cdot 5} = \frac{24}{25} = 0.96$.
+**Ana and Ben, step by step.**
+
+1. *The difference vector.* Every distance starts from the gap between the two customers, taken
+   component by component: Ben $-$ Ana $= (6 - 3, 8 - 4) = (3, 4)$. Ben has been a customer 3 years
+   longer and has 4 more products. A distance is a norm (a "length") of this gap vector, and the
+   three norms measure that length in different ways.
+2. *Euclidean distance ($`\ell_2`$)* is the straight-line distance, by Pythagoras: square each
+   component, add, take the root. $\sqrt{3^2 + 4^2} = \sqrt{9 + 16} = \sqrt{25} = 5$.
+3. *Manhattan distance ($`\ell_1`$)* adds the absolute gaps, like walking along a street grid
+   instead of cutting diagonally: $|3| + |4| = 7$.
+4. *Chebyshev distance ($`\ell_\infty`$)* keeps only the single largest gap: $\max(|3|, |4|) = 4$.
+5. *Cosine similarity* uses the two original vectors, not the gap. It asks whether they point in
+   the same direction, ignoring their lengths:
+   - dot product (multiply matching components, then add): $3 \cdot 6 + 4 \cdot 8 = 18 + 32 = 50$;
+   - length of Ana: $\sqrt{3^2 + 4^2} = \sqrt{25} = 5$;
+   - length of Ben: $\sqrt{6^2 + 8^2} = \sqrt{36 + 64} = \sqrt{100} = 10$;
+   - dot product divided by the product of the lengths: $\frac{50}{5 \cdot 10} = \frac{50}{50} = 1$.
+
+The cosine is exactly 1 because Ben is twice Ana: $(6, 8) = 2 \cdot (3, 4)$. Both vectors lie on
+the same line through the origin, so the angle between them is 0° and $\cos 0° = 1$, the largest
+possible value. In general, for $`\mathbf{b} = c\,\mathbf{a}`$ with $`c > 0`$ the dot product is
+$`c\,\|\mathbf{a}\|^2`$ and the product of the lengths is also $`c\,\|\mathbf{a}\|^2`$, so the factor
+$c$ cancels and the cosine is always 1.
+
+**Ana and Cleo, the same steps in short.** They differ by $(4 - 3, 3 - 4) = (1, -1)$: Euclidean
+distance $\sqrt{1^2 + (-1)^2} = \sqrt{2} \approx 1.41$, Manhattan distance $|1| + |-1| = 2$, Chebyshev
+distance $\max(|1|, |-1|) = 1$; cosine similarity
+$\frac{3 \cdot 4 + 4 \cdot 3}{5 \cdot 5} = \frac{24}{25} = 0.96$.
 
 By distance, Cleo is Ana's nearest neighbour; by cosine, Ben is — a "scaled-up Ana" with a
-different size but exactly the same profile. Distance compares size *and* direction, cosine
+different size but exactly the same profile (the same ratio of products to years,
+$4/3 = 8/6$, where Cleo has $3/4$). Distance compares size *and* direction, cosine
 only direction; which one fits depends on the question being asked.
 
 ```python
