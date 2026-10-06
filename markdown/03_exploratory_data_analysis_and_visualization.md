@@ -406,10 +406,11 @@ plt.show()
 
 ![Figure 3: kernel density estimates](figures/03_exploratory_data_analysis_and_visualization/fig-03.png)
 
-With 5 bins the distribution looks like one broad hump; with 30 it is clearly
-**trimodal**, and the modes sit near 20, 55 and 85 — the base prices of the three internet
-plans (none, DSL, fibre), each spread by add-ons. A summary statistic such as "mean 69"
-would have described no actual customer.
+With 5 bins the distribution looks like one broad hump; with 30 it is clearly **trimodal**,
+with modes near 20, 65 and 95 — one per internet plan (none, DSL, fibre). The DSL and fibre
+modes sit about 10 above those plans' base prices of 55 and 85, because most of their
+customers also pay for add-ons; section 3.6 takes the prices apart. A summary statistic such
+as "mean 69" would have described no actual customer.
 
 > **Real-life examples.** Several modes appear whenever a variable mixes groups: the ages of
 > visitors to a playground (young children and their parents, almost nobody in between), or the
@@ -464,19 +465,20 @@ A **box plot** summarises a distribution with five numbers: the median (line), t
 and third quartiles (box edges — the box spans the interquartile range, IQR), whiskers to
 the most extreme points within $1.5 \times$ IQR of the box, and individual markers beyond
 that ("outliers" by this convention). It is compact and excellent for comparing many
-groups side by side — but it cannot show *shape*. A **violin plot** draws a KDE (built from scratch
-in section 3.6) on each side and reveals modes. Use the box for many groups, the violin when shape matters, and
-overlay the raw points (`stripplot`/`swarmplot`) when there are few observations.
+groups side by side — but it cannot show *shape*. A **violin plot** draws a KDE (built from
+scratch in section 3.6) on each side and reveals modes. Use the box for many groups, the
+violin when shape matters, and overlay the raw points (`stripplot`/`swarmplot`) when there
+are few observations.
 
 > **Real-life example.** A delivery company compares the delivery times of its 40 depots with 40
 > box plots side by side — median and spread at a glance. But if one depot sends half its parcels
-> by express (1 day) and half by standard post (4 days), its box sits around 2–3 days, where
-> hardly any parcel actually arrives; only a violin (or a histogram) shows the two peaks.
+> by express (1 day) and half by standard post (4 days), its median sits around 2–3 days,
+> where hardly any parcel actually arrives; only a violin (or a histogram) shows the two peaks.
 
 ```python
 fig, axes = plt.subplots(1, 2, figsize=(12, 3.6))
 sns.boxplot(x=x, ax=axes[0], color=PALETTE[0], width=0.4)    # passing the data as x= draws a horizontal box
-axes[0].set_title("box plot: median, quartiles, whiskers — the three modes are invisible")
+axes[0].set_title("box plot: the three modes are invisible")
 # inner="quartile" draws the quartiles as lines inside the violin; cut=0 stops the density at the data's min and max
 sns.violinplot(x=x, ax=axes[1], color=PALETTE[2], inner="quartile", cut=0)
 axes[1].set_title("violin plot: the same data, with its shape")
@@ -485,7 +487,96 @@ for ax in axes:
 plt.show()
 ```
 
-![Figure 5: box plot: median, quartiles, whiskers — the three modes are invisible](figures/03_exploratory_data_analysis_and_visualization/fig-05.png)
+![Figure 5: box plot: the three modes are invisible](figures/03_exploratory_data_analysis_and_visualization/fig-05.png)
+
+**Reading a violin.** The value axis is the same as the box plot's: in the horizontal violin
+above it is the x-axis, monthly charges. The other axis — here the y-axis — is the *thickness*
+axis: at every charge value the violin is as thick as the estimated density of customers at
+that value, drawn once above and once below the centre line. The outline is therefore the KDE
+of section 3.1, laid along the value axis and mirrored (Hintze & Nelson, 1998). The thickness
+axis carries no numbers: it is seaborn's *category* axis, one slot per group labelled with the
+group's name, and with `x=x` and no grouping column there is a single unnamed group, hence the
+one blank tick mark at its centre. Numbers would not help anyway, because the curve is
+rescaled to fit the slot: its widest point spans 0.8 of the slot (the default `width=0.8`,
+±0.4 around the centre line; the box plot above was given `width=0.4` and is half as thick).
+Read the thickness as "how crowded is it here": the violin is widest around 93, in the fibre
+bulge — above that plan's base price of 85, because most fibre customers also pay for add-ons
+(section 3.6) — and pinched to almost nothing near 38, where hardly anybody pays; the three
+bulges are the three internet plans of section 3.1. The dashed lines are the quartiles
+(`inner="quartile"`; the middle one is the median, 71.6), and `cut=0` ends the outline at the
+smallest and largest charge instead of letting the smoothing run past them. Three details of
+the smoothing matter:
+
+- the thickness is a *density*, not a count or a probability — a rate per currency unit, so
+  probabilities are areas (section 3.6);
+- violins drawn side by side are each scaled to the same area by default
+  (`density_norm="area"`), so a group of 50 customers looks as fat as one of 5 000;
+  `density_norm="count"` makes the width grow with the group size;
+- the outline is only as good as its bandwidth: Scott's rule gives about 5 currency units
+  here, which smears the 116 customers at exactly 15.00 into the first bulge (`bw_adjust`
+  changes it; section 3.6).
+
+The next cell builds the depot of the example above — half express, half standard post — and
+draws its box plot, its violin and the KDE curve the violin is made of.
+
+> **Real-life example.** An airline draws the arrival delays of 10 000 flights as a violin: a
+> fat bulge around zero, where most flights land within a few minutes of schedule, and a thin
+> stem reaching up to several hours. The length of the stem says how late a flight *can* be,
+> its thinness how rare that is — what the operations team needs to decide how many spare
+> crews to keep on standby. A box plot gives the same range, but not how thin the stem is.
+
+```python
+# e.g. one depot's parcels: half go by express (about 1 day), half by standard post (about 4 days)
+toy_rng = np.random.default_rng(RANDOM_STATE)    # a generator of its own, so the notebook's rng stays untouched
+days = np.concatenate([toy_rng.normal(1.0, 0.25, 50),   # 50 express parcels: mean 1 day, standard deviation 0.25 days
+                       toy_rng.normal(4.0, 0.40, 50)])  # 50 standard parcels: mean 4 days, standard deviation 0.4 days
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 3.8), sharey=True)  # sharey=True: delivery days on one common y-axis
+# y= (instead of x= as above) draws a vertical box: the y-axis is now the value axis
+sns.boxplot(y=days, ax=axes[0], color=PALETTE[0], width=0.4)
+axes[0].set_title("box plot: the box spans the empty gap")
+sns.violinplot(y=days, ax=axes[1], color=PALETTE[2], inner="quartile", cut=0)
+axes[1].set_title("violin: width = density of parcels")
+# the violin's outline is this curve, drawn once on each side: kdeplot with y= puts the values on the y-axis
+# and the density on the x-axis; fill=True shades the area under the curve
+sns.kdeplot(y=days, ax=axes[2], color=PALETTE[2], lw=2, cut=0, fill=True)
+axes[2].set_title("the KDE behind the violin, rotated")
+axes[2].set_xlabel("density (per day)")
+axes[0].set_ylabel("delivery time (days)")
+plt.tight_layout()
+plt.show()
+
+# the numbers behind the picture: the box plot's median sits in the violin's neck
+q1, median, q3 = np.percentile(days, [25, 50, 75])   # the values below which 25 %, 50 % and 75 % of the parcels lie
+print(f"median {median:.1f} days, quartiles {q1:.1f} and {q3:.1f} days")
+# stats.gaussian_kde is the estimator inside violinplot and kdeplot; its default bandwidth is Scott's rule
+# (called toy_kde rather than kde, because section 3.6 defines a kde() function of its own)
+toy_kde = stats.gaussian_kde(days)
+peak = toy_kde(np.linspace(days.min(), days.max(), 200)).max()  # largest density on a fine grid: the widest point
+for t in [1.0, median, 4.0]:    # at the two services' means (the bulges) and at the median (the neck)
+    density = toy_kde(t)[0]     # toy_kde(t) returns a one-element array: the estimated density at t
+    share = density / peak      # relative to the peak, the density is the violin's width at t
+    print(f"density at {t:.1f} days: {density:.3f}  ->  the violin is {share:.0%} as wide as at its widest point")
+```
+
+![Figure 6: box plot: the box spans the empty gap](figures/03_exploratory_data_analysis_and_visualization/fig-06.png)
+
+```text
+median 2.4 days, quartiles 1.0 and 3.9 days
+density at 1.0 days: 0.322  ->  the violin is 100% as wide as at its widest point
+density at 2.4 days: 0.048  ->  the violin is 15% as wide as at its widest point
+density at 4.0 days: 0.298  ->  the violin is 92% as wide as at its widest point
+```
+
+The depot's box plot puts the median at 2.4 days and the box from 1.0 to 3.9 days — the same
+three numbers as the dashed lines inside the violin. The median sits in the violin's neck,
+where the density is 15 % of its peak and hardly a parcel arrives; the box spans the empty
+gap, from one bulge to the other. The violin itself is a dumbbell: widest at 1 day, almost as
+wide (92 %) at 4 days, thin in between. The third panel is the violin's recipe: the KDE curve
+of the delivery times with the values on the y-axis; the violin is that curve drawn twice,
+mirrored around its centre line. The box plot is not wrong here, only mute — its five numbers
+do not show whether the parcels form two peaks or one broad hump, and that difference is
+exactly what the violin adds.
 
 **Strip and swarm plots** give up summarising altogether and draw *every observation* as a dot.
 A **strip plot** places the dots along the value axis and spreads them sideways by a random
@@ -537,7 +628,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-![Figure 6: strip plot: one dot per customer, jittered sideways](figures/03_exploratory_data_analysis_and_visualization/fig-06.png)
+![Figure 7: strip plot: one dot per customer, jittered sideways](figures/03_exploratory_data_analysis_and_visualization/fig-07.png)
 
 The three clouds are the three modes of section 3.1, now explained: each plan has its own price
 band, and on DSL and fibre the add-ons spread the charges over about 30 units. The swarm plot adds
@@ -577,7 +668,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-![Figure 7](figures/03_exploratory_data_analysis_and_visualization/fig-07.png)
+![Figure 8](figures/03_exploratory_data_analysis_and_visualization/fig-08.png)
 
 ### 3.5 Robust statistics and outlier detection
 
@@ -802,7 +893,7 @@ p_hat(2), p_hat(4) from scratch:  [0.24828 0.06048]
 p_hat(2), p_hat(4) from sklearn:  [0.24828 0.06048]
 ```
 
-![Figure 8](figures/03_exploratory_data_analysis_and_visualization/fig-08.png)
+![Figure 9](figures/03_exploratory_data_analysis_and_visualization/fig-09.png)
 
 Both estimates are averages of the same four bumps. The box kernel gives a staircase that
 jumps at every $`x_i \pm h`$; the Gaussian kernel gives a smooth curve. Our ten-line function and
@@ -988,7 +1079,7 @@ number of modes per bandwidth:
 modes     74     62     51     42     35     27     20     13     11      9      8      8      5      5      5      5      4      4      3      3      3      3      3      3      3      3      2      2      1      1      1
 ```
 
-![Figure 9: mode count: plateaus at 3 and 5 modes, noise below h ≈ 1](figures/03_exploratory_data_analysis_and_visualization/fig-09.png)
+![Figure 10: mode count: plateaus at 3 and 5 modes, noise below h ≈ 1](figures/03_exploratory_data_analysis_and_visualization/fig-10.png)
 
 Our function reproduces `sns.kdeplot` to rounding error: seaborn's default *is* Scott's rule,
 here $h \approx 5$. Read the four panels together.
@@ -1048,7 +1139,7 @@ std                 4.1    4.2    3.9         4.0     4.0    4.1    3.7
 largest difference between the sum of the group curves and the KDE of all customers: 6.9e-18
 ```
 
-![Figure 10](figures/03_exploratory_data_analysis_and_visualization/fig-10.png)
+![Figure 11](figures/03_exploratory_data_analysis_and_visualization/fig-11.png)
 
 The bumps are prices: each plan's base price (about 20, 55 and 85) plus roughly 11 per
 add-on (tech support, streaming), with a spread of about 4 around each combination. At
@@ -1189,7 +1280,7 @@ fallacy 5: heights are not probabilities
 area inside [0, 72]: plain KDE 0.937, reflected KDE 1.000
 ```
 
-![Figure 11: tenure: leaks past 0 and 72, hides the cap](figures/03_exploratory_data_analysis_and_visualization/fig-11.png)
+![Figure 12: tenure: leaks past 0 and 72, hides the cap](figures/03_exploratory_data_analysis_and_visualization/fig-12.png)
 
 Each panel is a different fallacy, and each is invisible unless you compare the curve with
 the data:
@@ -1285,7 +1376,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-![Figure 12: tenure vs. total charges (alpha = 0.25)](figures/03_exploratory_data_analysis_and_visualization/fig-12.png)
+![Figure 13: tenure vs. total charges (alpha = 0.25)](figures/03_exploratory_data_analysis_and_visualization/fig-13.png)
 
 The fan shape in the first panel is exactly what `total ≈ monthly × tenure` predicts:
 customers on different plans accumulate charges at different rates. The third panel shows
@@ -1388,7 +1479,7 @@ plt.show()
 pd.DataFrame(rows).set_index("set").round(2)     # a list of dicts becomes one row per dict
 ```
 
-![Figure 13](figures/03_exploratory_data_analysis_and_visualization/fig-13.png)
+![Figure 14](figures/03_exploratory_data_analysis_and_visualization/fig-14.png)
 
 | set | mean x | var x | mean y | var y | corr | slope | intercept |
 |---|---|---|---|---|---|---|---|
@@ -1462,7 +1553,7 @@ ax.grid(False)
 plt.show()
 ```
 
-![Figure 14: Correlation matrix of the churn data (lower triangle)](figures/03_exploratory_data_analysis_and_visualization/fig-14.png)
+![Figure 15: Correlation matrix of the churn data (lower triangle)](figures/03_exploratory_data_analysis_and_visualization/fig-15.png)
 
 ### 4.6 Categorical versus numeric
 
@@ -1506,7 +1597,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-![Figure 15: monthly charges by internet service and contract](figures/03_exploratory_data_analysis_and_visualization/fig-15.png)
+![Figure 16: monthly charges by internet service and contract](figures/03_exploratory_data_analysis_and_visualization/fig-16.png)
 
 Monthly charges depend on the internet plan and barely on the contract; churn depends on
 tenure with a sharp early-life spike and a steady decline. The tiny bucket of brand-new
@@ -1559,7 +1650,7 @@ plt.show()
 chi-square test of independence: chi2 = 665.7, dof = 2, p = 2.7e-145
 ```
 
-![Figure 16: Churn by contract type (normalised stacked bars)](figures/03_exploratory_data_analysis_and_visualization/fig-16.png)
+![Figure 17: Churn by contract type (normalised stacked bars)](figures/03_exploratory_data_analysis_and_visualization/fig-17.png)
 
 ### 4.8 Target-oriented EDA: churn rate by segment
 
@@ -1602,7 +1693,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-![Figure 17](figures/03_exploratory_data_analysis_and_visualization/fig-17.png)
+![Figure 18](figures/03_exploratory_data_analysis_and_visualization/fig-18.png)
 
 Contract type, internet service, payment method, tech support and tenure carry strong
 signal; region carries none (the four bars sit on the base rate); senior citizens churn
@@ -1635,7 +1726,7 @@ g.figure.suptitle("Pair plot of four numeric features, coloured by churn (800 sa
 plt.show()
 ```
 
-![Figure 18: Pair plot of four numeric features, coloured by churn (800 sampled customers)](figures/03_exploratory_data_analysis_and_visualization/fig-18.png)
+![Figure 19: Pair plot of four numeric features, coloured by churn (800 sampled customers)](figures/03_exploratory_data_analysis_and_visualization/fig-19.png)
 
 ### 5.2 Small multiples and facets
 
@@ -1661,7 +1752,7 @@ g.figure.suptitle("Churn rate by contract and internet service, faceted by senio
 plt.show()
 ```
 
-![Figure 19: Churn rate by contract and internet service, faceted by senior-citizen status](figures/03_exploratory_data_analysis_and_visualization/fig-19.png)
+![Figure 20: Churn rate by contract and internet service, faceted by senior-citizen status](figures/03_exploratory_data_analysis_and_visualization/fig-20.png)
 
 ### 5.3 Parallel coordinates and a first look at PCA
 
@@ -1714,7 +1805,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-![Figure 20: parallel coordinates (standardised features)](figures/03_exploratory_data_analysis_and_visualization/fig-20.png)
+![Figure 21: parallel coordinates (standardised features)](figures/03_exploratory_data_analysis_and_visualization/fig-21.png)
 
 Two principal components — a specific linear combination of thirteen measurements — are
 enough to separate the three cultivars almost completely; flavanoids, colour intensity and
@@ -1771,7 +1862,7 @@ plt.show()
 | 75% | 659.4 | 17.0 | 0.0 |
 | max | 920.2 | 33.1 | 1.0 |
 
-![Figure 21: Hourly electricity demand, two years](figures/03_exploratory_data_analysis_and_visualization/fig-21.png)
+![Figure 22: Hourly electricity demand, two years](figures/03_exploratory_data_analysis_and_visualization/fig-22.png)
 
 Three time scales are visible at once: the hourly wiggle (a daily cycle), the weekly
 pattern in the daily means, and an annual cycle with winter and summer peaks plus a slight
@@ -1799,7 +1890,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-![Figure 22: hour-of-day x weekday profile](figures/03_exploratory_data_analysis_and_visualization/fig-22.png)
+![Figure 23: hour-of-day x weekday profile](figures/03_exploratory_data_analysis_and_visualization/fig-23.png)
 
 The heatmap shows the double daily peak (morning and early evening), the weekend dip, and
 that Saturday and Sunday lose the morning peak entirely; the monthly boxes show the winter
@@ -1827,7 +1918,7 @@ print(f"mean weekday demand: holidays {holiday_effect[1]:.0f} MW vs. other weekd
       f"({holiday_effect[1] / holiday_effect[0] - 1:+.1%})")
 ```
 
-![Figure 23: Demand vs. temperature: heating below ~15 °C, cooling above ~22 °C](figures/03_exploratory_data_analysis_and_visualization/fig-23.png)
+![Figure 24: Demand vs. temperature: heating below ~15 °C, cooling above ~22 °C](figures/03_exploratory_data_analysis_and_visualization/fig-24.png)
 
 ```text
 mean weekday demand: holidays 556 MW vs. other weekdays 620 MW (-10.4%)
@@ -1888,7 +1979,7 @@ plt.show()
 | Two year | 0.080 | 0.046 |
 | ALL customers | 0.222 | 0.348 |
 
-![Figure 24: Simpson's paradox: the offer helps in every segment but 'hurts' overall](figures/03_exploratory_data_analysis_and_visualization/fig-24.png)
+![Figure 25: Simpson's paradox: the offer helps in every segment but 'hurts' overall](figures/03_exploratory_data_analysis_and_visualization/fig-25.png)
 
 The resolution is not statistical but *causal*: the pooled comparison compares mostly
 month-to-month customers (who got the offer) with mostly two-year customers (who did not).
@@ -1934,7 +2025,7 @@ for ax, (title, ylim) in zip(axes, [("MISLEADING: truncated y-axis", (0.29, 0.35
 plt.show()
 ```
 
-![Figure 25](figures/03_exploratory_data_analysis_and_visualization/fig-25.png)
+![Figure 26](figures/03_exploratory_data_analysis_and_visualization/fig-26.png)
 
 ### 7.4 A checklist for an EDA report
 
@@ -2146,6 +2237,7 @@ recommends looking at a range of bandwidths and at the raw values.
 - Matejka, J., & Fitzmaurice, G. (2017). Same stats, different graphs: generating datasets with varied appearance and identical statistics through simulated annealing. *Proceedings of CHI 2017*, 1290–1294. — The "datasaurus dozen", Anscombe's idea taken to its logical conclusion.
 - Cleveland, W. S., & McGill, R. (1984). Graphical perception: theory, experimentation, and application to the development of graphical methods. *Journal of the American Statistical Association*, 79(387), 531–554. — The experiments behind "position beats length beats area beats colour".
 - Wainer, H. (1984). How to display data badly. *The American Statistician*, 38(2), 137–147. — Twelve rules for bad graphics, each illustrated; funny and instructive.
+- Hintze, J. L., & Nelson, R. D. (1998). Violin plots: a box plot–density trace synergism. *The American Statistician*, 52(2), 181–184. — The paper that introduced the violin plot of section 3.3: a box plot with the density trace drawn mirrored around it.
 - Simpson, E. H. (1951). The interpretation of interaction in contingency tables. *Journal of the Royal Statistical Society: Series B*, 13(2), 238–241. — The paradox of section 7.1.
 - Bickel, P. J., Hammel, E. A., & O'Connell, J. W. (1975). Sex bias in graduate admissions: data from Berkeley. *Science*, 187(4175), 398–404. — The best-known real Simpson's paradox (section 7.1).
 - Charig, C. R., Webb, D. R., Payne, S. R., & Wickham, J. E. (1986). Comparison of treatment of renal calculi by open surgery, percutaneous nephrolithotomy, and extracorporeal shockwave lithotripsy. *British Medical Journal*, 292(6524), 879–882. — The kidney-stone example of section 7.1.
