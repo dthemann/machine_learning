@@ -1,0 +1,14 @@
+{
+	// Dark reading mode for the Markdown editions (markdown/*.md): one stylesheet, markdown/dark.css,
+	// for the VS Code preview and for the Markdown PDF extension. Delete these entries for white pages.
+	"markdown.styles": ["markdown/dark.css"],
+	"markdown-pdf.styles": ["markdown/dark.css"],
+
+	// Chromium leaves the page margins white, so the side margins are 0 (dark.css pads the body
+	// instead) and the top and bottom margins are covered by black header and footer bands that
+	// carry the title, the date and the page numbers in grey.
+	"markdown-pdf.margin.left": "0cm",
+	"markdown-pdf.margin.right": "0cm",
+	"markdown-pdf.headerTemplate": "<div style=\"position:absolute;top:0;left:0;width:100%;height:1.5cm;box-sizing:border-box;padding:0 1cm;background:#000;-webkit-print-color-adjust:exact;display:flex;align-items:center;justify-content:space-between;font-size:9px;color:#9a9a9a;\"><span class='title'></span><span>%%ISO-DATE%%</span></div>",
+	"markdown-pdf.footerTemplate": "<div style=\"position:absolute;bottom:0;left:0;width:100%;height:1cm;background:#000;-webkit-print-color-adjust:exact;display:flex;align-items:center;justify-content:center;font-size:9px;color:#9a9a9a;\"><span class='pageNumber'></span>&nbsp;/&nbsp;<span class='totalPages'></span></div>"
+}
