@@ -489,6 +489,92 @@ plt.show()
 
 ![Figure 5: box plot: the three modes are invisible](figures/03_exploratory_data_analysis_and_visualization/fig-05.png)
 
+**Reading a box plot.** Tukey (1977) introduced the *box-and-whisker plot* as a drawing of the
+**five-number summary** — minimum, lower quartile, median, upper quartile, maximum — and then
+refined it into the *schematic plot* that every library draws today, in which the whiskers stop
+short of the extremes and the far points are drawn one by one. The left panel above is such a
+plot of the monthly charges of the 4 997 customers with a known charge, and it is built from
+five numbers and a rule:
+
+| element | how it is computed | what it says |
+|---|---|---|
+| the line inside the box | the **median** $`Q_2`$: half the customers pay less, half pay more | the centre, 71.6 here |
+| the box | from the **first quartile** $`Q_1`$ (a quarter pay less) to the **third quartile** $`Q_3`$ (three quarters pay less) | the middle half of the customers, 55.0 to 91.7 |
+| the length of the box | the **interquartile range** $`\mathrm{IQR} = Q_3 - Q_1`$ | a robust measure of spread (section 3.5), 36.7 here |
+| the whiskers | from the box to the most extreme *observed* value within $1.5 \times \mathrm{IQR}$ of the box | the range of the "ordinary" customers |
+| the fliers | every value beyond the whiskers, drawn as a single marker | the candidates for a closer look |
+
+The three quartiles are the values below which 25 %, 50 % and 75 % of the data lie. Seaborn
+hands the data to `matplotlib.cbook.boxplot_stats`, which computes them with `np.percentile` —
+the same linear interpolation between neighbouring sorted values that `Series.quantile` uses,
+so the numbers agree with `x.quantile([0.25, 0.5, 0.75])` and with the `iqr_flags` function of
+section 3.5 to the last digit. (There are nine textbook definitions of a sample quantile
+(Hyndman & Fan, 1996); they differ for a handful of points and are indistinguishable for 5
+000.) Exactly 2 499 customers, half of them, sit inside the box. The median is not in the
+middle of the box: it lies 45 % of the way from $`Q_1`$ to $`Q_3`$, so the lower half of the box is
+a little shorter than the upper half, and the lower whisker (40 units) is longer than the upper
+one (28 units). Asymmetry of this kind is what a box plot shows about *shape*: a median hugging
+the lower edge of the box and a long upper whisker mean a right-skewed distribution, like the
+total charges of section 3.2.
+
+**The whiskers are not the minimum and the maximum** — the most common misreading. The rule has
+two steps. First draw two invisible *fences* at $`Q_1 - 1.5\,\mathrm{IQR}`$ and $`Q_3 + 1.5\,\mathrm{IQR}`$; with $1.5 \times 36.7 = 55.0$ they sit at $55.0 - 55.0 \approx 0$ and $91.7 + 55.0 = 146.7$ here. Then end each whisker at the most extreme data point that is still
+*inside* its fence — never at the fence itself, so a whisker always ends on a real observation
+and the two whiskers are usually of unequal length. Every charge lies between 15.00 and 120.16,
+well inside both fences, so here, and only by coincidence, the whiskers do reach the minimum
+and the maximum, and there are no fliers at all. Replace the cleaning of section 2.2 by the raw
+column and the picture changes in exactly one place: the three values of 999 fall far beyond
+the upper fence and appear as three fliers at the right edge, while the box, the median and the
+whiskers hardly move (the third quartile shifts by less than a tenth of a unit) — three bad
+values out of 5 000 cannot drag a quartile, and that robustness is why the box plot is the
+right chart for data you have not cleaned yet (section 3.5). The factor 1.5 is a convention,
+not a law: for normally distributed data the fences sit at $`\pm 2.698\,\sigma`$, so 0.7 % of the
+points — about 35 of 5 000 — fall outside *by chance alone*. A flier is therefore a point worth
+a question, not a verdict; Tukey called these points "outside" and reserved "far out" for the
+points beyond $3 \times \mathrm{IQR}$, which a normal distribution produces at a rate of about
+two in a million.
+
+Two refinements from McGill, Tukey & Larsen (1978) are worth knowing. A **notched** box plot
+(`notch=True`) narrows the box around the median to the interval $`\operatorname{median} \pm 1.57\,\mathrm{IQR}/\sqrt{n}`$, a rough 95 % confidence interval for the median: when the notches
+of two groups do not overlap, their medians differ by more than sampling noise can explain.
+With $`n = 4\,997`$ the notch here is 70.8 to 72.4 — barely visible, which is itself the message:
+the median of a sample this size is known to within a unit. A **variable-width** box plot draws
+each box with a width proportional to $\sqrt{n}$, so that a group of 50 and a group of 5 000 no
+longer look alike; seaborn does not offer it (matplotlib's own `plt.boxplot` does, through
+`widths=`), but the sample size can be written under each box or the points overlaid (strip
+plots, below). The other options worth knowing are `showmeans=True`, which adds the mean as a
+marker (68.9 here, below the median because the 874 customers without internet pay only 15 to
+31); `whis=(5, 95)`, which ends the whiskers at the 5th and 95th percentiles instead of at
+Tukey's fences; `whis=(0, 100)`, which draws the old five-number summary with whiskers at the
+extremes; and `showfliers=False`, which hides the fliers when the raw points are drawn on top
+anyway. As with the violin, the thickness axis carries no information: the box is drawn
+`width=0.4` of its slot for looks alone, and a box of 8 observations is as thick as one of 80
+000.
+
+What the box plot cannot do follows from its construction. Five numbers cannot describe the
+three bulges in the right panel: the box from 55 to 92 covers the whole DSL bulge and the lower
+half of the fibre bulge, and the median of 71.6 sits in the shallow dip between the two, where
+a band of 5 currency units holds about 240 customers against about 490 at the fibre peak. The
+median is a perfectly good centre, but no customer group is "typical" at 71.6 — a milder form
+of the depot's problem in the example above, whose median falls where no parcel arrives at all.
+Nor can a box plot show the sample size, and with discrete data it degenerates: support tickets
+have $`Q_1 = 0`$, $`Q_2 = 1`$ and $`Q_3 = 2`$, so the "box" spans three possible values, the upper
+whisker ends at 5 tickets, and the 14 customers with 6 to 8 tickets become fliers that are
+perfectly real (section 3.5). Finally, the 0.7 % rule scales with $n$: on a column of a million
+values a normal distribution alone produces 7 000 fliers, and the whisker disappears under a
+smear of markers — thin them out with `showfliers=False` or percentile whiskers. Within these
+limits the box plot is unbeatable at one job: comparing the centre and spread of many groups at
+a glance, which is what section 4.6 uses it for.
+
+> **Real-life example.** A human-resources team compares salaries across 12 departments with
+> 12 box plots. The medians line up, so the departments pay similarly in the middle; the long
+> boxes in sales and engineering say that pay varies most there; the upper whiskers are longer
+> than the lower ones in every department, because salaries are right-skewed; and the fliers
+> above the whiskers are the senior staff, real people rather than errors. The mean salary would
+> be pulled up by every one of them, which is why pay comparisons report medians. What the
+> box plots cannot show is that the finance department's salaries are bimodal — analysts and
+> partners — and that is where a violin or a strip plot has to take over.
+
 **Reading a violin.** The value axis is the same as the box plot's: in the horizontal violin
 above it is the x-axis, monthly charges. The other axis — here the y-axis — is the *thickness*
 axis: at every charge value the violin is as thick as the estimated density of customers at
@@ -2238,6 +2324,8 @@ recommends looking at a range of bandwidths and at the raw values.
 - Cleveland, W. S., & McGill, R. (1984). Graphical perception: theory, experimentation, and application to the development of graphical methods. *Journal of the American Statistical Association*, 79(387), 531–554. — The experiments behind "position beats length beats area beats colour".
 - Wainer, H. (1984). How to display data badly. *The American Statistician*, 38(2), 137–147. — Twelve rules for bad graphics, each illustrated; funny and instructive.
 - Hintze, J. L., & Nelson, R. D. (1998). Violin plots: a box plot–density trace synergism. *The American Statistician*, 52(2), 181–184. — The paper that introduced the violin plot of section 3.3: a box plot with the density trace drawn mirrored around it.
+- McGill, R., Tukey, J. W., & Larsen, W. A. (1978). Variations of box plots. *The American Statistician*, 32(1), 12–16. — Notched and variable-width box plots (section 3.3); the notch formula $`\operatorname{median} \pm 1.57\,\mathrm{IQR}/\sqrt{n}`$ that Matplotlib uses comes from here.
+- Hyndman, R. J., & Fan, Y. (1996). Sample quantiles in statistical packages. *The American Statistician*, 50(4), 361–365. — The nine definitions of a sample quantile and why software disagrees on small samples; NumPy's default is their type 7 (section 3.3).
 - Simpson, E. H. (1951). The interpretation of interaction in contingency tables. *Journal of the Royal Statistical Society: Series B*, 13(2), 238–241. — The paradox of section 7.1.
 - Bickel, P. J., Hammel, E. A., & O'Connell, J. W. (1975). Sex bias in graduate admissions: data from Berkeley. *Science*, 187(4175), 398–404. — The best-known real Simpson's paradox (section 7.1).
 - Charig, C. R., Webb, D. R., Payne, S. R., & Wickham, J. E. (1986). Comparison of treatment of renal calculi by open surgery, percutaneous nephrolithotomy, and extracorporeal shockwave lithotripsy. *British Medical Journal*, 292(6524), 879–882. — The kidney-stone example of section 7.1.
