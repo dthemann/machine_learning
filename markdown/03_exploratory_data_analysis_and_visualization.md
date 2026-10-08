@@ -4,6 +4,31 @@
 >
 > ← [2. Mathematics essentials: linear algebra, calculus, probability, statistics and information theory](02_mathematics_essentials.md) · [all notebooks](README.md) · [4. Data preprocessing and feature engineering](04_data_preprocessing_and_feature_engineering.md) →
 
+<style>
+/* Dark reading mode for this edition: black page, light text. VS Code's Markdown preview applies
+   it whatever the colour theme; GitHub drops style blocks and keeps its own theme. */
+html, body { background-color: #000 !important; color: #e6e6e6 !important; }
+body { padding-bottom: 3em; }
+a { color: #8ab4f8 !important; }
+h1, h2, hr { border-color: #333 !important; }
+blockquote { border-left-color: #555 !important; background-color: #0f0f0f; color: #cfcfcf; }
+th { border-color: #888 !important; }
+td { border-color: #333 !important; }
+code { color: #f2f2f2 !important; background-color: #1a1a1a; border-radius: 3px; padding: 0 4px; }
+pre { background-color: #111 !important; border-color: #333 !important; }
+pre code { background: none; padding: 0; }
+img { background-color: #fff; padding: 6px; border-radius: 4px; }
+/* syntax colours that stay readable on black (the preview's light theme would pick dark ones) */
+.hljs-keyword, .hljs-literal, .hljs-symbol, .hljs-name { color: #569cd6 !important; }
+.hljs-built_in, .hljs-type { color: #4ec9b0 !important; }
+.hljs-number, .hljs-class { color: #b8d7a3 !important; }
+.hljs-string, .hljs-meta-string { color: #d69d85 !important; }
+.hljs-comment, .hljs-quote { color: #6a9955 !important; }
+.hljs-title, .hljs-function, .hljs-params, .hljs-subst { color: #dcdcdc !important; }
+.hljs-attr, .hljs-attribute, .hljs-builtin-name { color: #9cdcfe !important; }
+.hljs-meta, .hljs-meta-keyword { color: #9b9b9b !important; }
+</style>
+
 Before a single model is fitted, a data scientist spends hours — often days — simply
 *looking* at the data. That is not procrastination; it is where most of the value of a
 project is created or lost. Exploratory data analysis (EDA) is how you learn what a row
